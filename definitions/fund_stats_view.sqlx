@@ -1,0 +1,57 @@
+config {
+    type: "view",
+    materialized: true, // This turns the standard view into a materialized view
+    schema: "Views", // Where you want the MV to live
+    name: "fund_stats_view" // The name of your view
+}
+
+SELECT
+  NOT STARTS_WITH(FundName, "1") AS IsExtraordinary,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_TRUNC(CURRENT_DATE(), YEAR), Amount, 0 )), 2) AS TotalYTD,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY), Amount, 0 )), 2) AS TotalT30d,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 395 DAY)
+        AND GiftDate < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Amount, 0 )), 2) AS TotalPT30d,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY), Amount, 0 )), 2) AS TotalT90d,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 455 DAY)
+        AND GiftDate < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Amount, 0 )), 2) AS TotalPT90d,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 180 DAY), Amount, 0 )), 2) AS TotalT180d,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 545 DAY)
+        AND GiftDate < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Amount, 0 )), 2) AS TotalPT180d,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)
+        AND GiftDate < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Amount, 0 )), 2) AS TotalPYTD,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Amount, 0 )), 2) AS TotalT12,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+        AND GiftDate < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Amount, 0 )), 2) AS TotalPT12,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)
+        AND NOT STARTS_WITH(FundName, "1"), Amount, 0 )), 2) AS TotalExtraT12,
+  ROUND(SUM(
+    IF
+      ( GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+        AND GiftDate < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)
+        AND NOT STARTS_WITH(FundName, "1"), Amount, 0 )), 2) AS TotalExtraPT12,
+FROM
+  ${ref("contributions_table")}
+GROUP BY
+  IsExtraordinary
