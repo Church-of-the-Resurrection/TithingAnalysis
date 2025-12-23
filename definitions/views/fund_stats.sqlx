@@ -1,0 +1,58 @@
+config {
+    type: "operations",
+    schema: "Views",
+    hasOutput: true
+}
+
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  SELECT
+    NOT STARTS_WITH(FundName, "1") AS IsExtraordinary,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_TRUNC(CURRENT_DATE(), YEAR), Total, 0 )), 2) AS TotalYTD,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY), Total, 0 )), 2) AS TotalT30d,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 395 DAY)
+          AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Total, 0 )), 2) AS TotalPT30d,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY), Total, 0 )), 2) AS TotalT90d,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 455 DAY)
+          AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Total, 0 )), 2) AS TotalPT90d,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 180 DAY), Total, 0 )), 2) AS TotalT180d,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 545 DAY)
+          AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Total, 0 )), 2) AS TotalPT180d,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(DATE_TRUNC(CURRENT_DATE(), YEAR), INTERVAL 1 YEAR)
+          AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Total, 0 )), 2) AS TotalPYTD,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Total, 0 )), 2) AS TotalT12,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+          AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), Total, 0 )), 2) AS TotalPT12,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)
+          AND NOT STARTS_WITH(FundName, "1"), Total, 0 )), 2) AS TotalExtraT12,
+    ROUND(SUM(
+      IF
+        ( GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+          AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)
+          AND NOT STARTS_WITH(FundName, "1"), Total, 0 )), 2) AS TotalExtraPT12,
+  FROM
+    ${ref("weekly_fund_stats")}
+  GROUP BY
+    IsExtraordinary );
