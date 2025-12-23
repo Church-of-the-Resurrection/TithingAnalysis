@@ -1,10 +1,10 @@
 config {
-    type: "view",
-    materialized: true, // This turns the standard view into a materialized view
-    schema: "Views", // Where you want the MV to live
-    name: "bulletin_stats_view" // The name of your view
+    type: "operations",
+    schema: "Views",
+    hasOutput: true
 }
 
+CREATE OR REPLACE VIEW ${self()} AS (
 WITH annual_budget as (
   SELECT 2049996 as budget_total
 ), totals as (
@@ -16,7 +16,7 @@ WITH annual_budget as (
     SUM(TotalPT12) as TotalPT12,
     SUM(TotalPT30d) as TotalPT30,
     SUM(TotalPT90d) as TotalPT90,
-  FROM ${ref("fund_stats_view")}
+  FROM ${ref("Views", "fund_stats")}
 )
 SELECT 
   TotalT12 / budget_total as PercentT12,
@@ -34,3 +34,4 @@ SELECT
   TotalPT30 / (budget_total / 12) as PercentPT30d,
   TotalPT30 - (budget_total / 12) as DeltaPT30,
 FROM totals
+);
