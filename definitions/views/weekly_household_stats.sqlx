@@ -1,0 +1,17 @@
+config {
+    type: "operations",
+    schema: "Views",
+    hasOutput: true,
+}
+
+CREATE OR REPLACE MATERIALIZED VIEW
+  ${self()} OPTIONS ( max_staleness = INTERVAL "4:0:0" HOUR TO SECOND ) AS (
+  SELECT
+    GivingNumber,
+    DATE_TRUNC(GiftDate, WEEK) AS GiftWeek,
+    SUM(ROUND(Amount, 2)) AS Total
+  FROM
+    ${ref("contributions_table")}
+  GROUP BY
+    GivingNumber,
+    GiftWeek );
