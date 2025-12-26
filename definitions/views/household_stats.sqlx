@@ -1,0 +1,16 @@
+config {
+    type: "operations",
+    schema: "Views",
+    hasOutput: true,
+}
+
+CREATE OR REPLACE MATERIALIZED VIEW
+  ${self()} OPTIONS ( max_staleness = INTERVAL "4:0:0" HOUR TO SECOND ) AS (
+  SELECT
+    GivingNumber,
+    MIN(GiftDate) AS FirstDonationDate,
+    MAX(GiftDate) AS LastDonationDate,
+  FROM
+    ${ref("contributions_table")}
+  GROUP BY
+    GivingNumber);
