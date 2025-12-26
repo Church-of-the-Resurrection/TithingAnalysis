@@ -12,8 +12,8 @@ CREATE OR REPLACE EXTERNAL TABLE
     GivingNumber INT64,
     GiftDate DATE,
     GiftType STRING,
-    FundName STRING,
     FundCode NUMERIC,
+    FundName STRING,
     Amount FLOAT64 )
 WITH CONNECTION `projects/finance-council/locations/us/connections/asdf`    
 OPTIONS ( format = 'CSV',
