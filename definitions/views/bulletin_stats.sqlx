@@ -6,9 +6,17 @@ config {
 
 CREATE OR REPLACE VIEW
   ${self()} AS (
+  WITH
+    latest_week AS (
+    SELECT
+      MAX(GiftWeek) AS latest_week
+    FROM
+      ${ref("Views", "weekly_fund_stats")} )
   SELECT
     *
   FROM
+    latest_week
+  CROSS JOIN
     ${ref("Views", "trailing_budget_stats")}
   CROSS JOIN
     ${ref("Views", "trailing_household_stats")} );
