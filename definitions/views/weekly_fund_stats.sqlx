@@ -11,6 +11,7 @@ AS (
   SELECT
     FundName,
     FundCode,
+    NOT STARTS_WITH(FundName, "1") AS IsExtraordinary,
     DATE_TRUNC(GiftDate, WEEK) as GiftWeek,
     SUM(ROUND(Amount, 2)) as Total
 FROM
@@ -18,5 +19,6 @@ FROM
 GROUP BY
   FundName,
   FundCode,
+  IsExtraordinary,
   GiftWeek
 );
