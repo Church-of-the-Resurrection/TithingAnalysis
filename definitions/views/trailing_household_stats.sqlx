@@ -1,0 +1,86 @@
+config {
+    type: "operations",
+    schema: "Views",
+    hasOutput: true
+}
+
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    totals AS (
+    SELECT
+      GivingNumber,
+      SUM(Total) AS TotalT12,
+      SUM(
+      IF
+        (GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY), Total, 0)) AS TotalT30d,
+      SUM(
+      IF
+        (GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY), Total, 0)) AS TotalT90d,
+      COUNT(*) AS CountT12,
+      CASE
+        WHEN COUNT(*) >= 40 THEN "WEEKLY"
+        WHEN COUNT(*) >= 20 THEN "BIWEEKLY"
+        WHEN COUNT(*) >= 10 THEN "MONTHLY"
+        WHEN COUNT(*) >= 1 THEN "BIMONTHLY"
+        ELSE "YEARLY"
+    END
+      AS CategoryT12
+    FROM
+      ${ref("Views", "weekly_household_stats")}
+    WHERE
+      GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)
+    GROUP BY
+      GivingNumber ),
+    previous_totals AS (
+    SELECT
+      GivingNumber,
+      SUM(
+      IF
+        (GiftWeek >= DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), INTERVAL 30 DAY), Total, 0)) AS TotalPT30d,
+      SUM(
+      IF
+        (GiftWeek >= DATE_SUB(DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR), INTERVAL 90 DAY), Total, 0)) AS TotalPT90d,
+      SUM(Total) AS TotalPT12,
+      COUNT(*) AS CountPT12,
+      CASE
+        WHEN COUNT(*) >= 40 THEN "WEEKLY"
+        WHEN COUNT(*) >= 20 THEN "BIWEEKLY"
+        WHEN COUNT(*) >= 10 THEN "MONTHLY"
+        WHEN COUNT(*) >= 1 THEN "BIMONTHLY"
+        ELSE "YEARLY"
+    END
+      AS CategoryPT12
+    FROM
+      ${ref("Views", "weekly_household_stats")}
+    WHERE
+      GiftWeek >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+      AND GiftWeek < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)
+    GROUP BY
+      GivingNumber )
+  SELECT
+    COUNTIF(FirstDonationDate > DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)) AS NumNewT30d,
+    COUNTIF(FirstDonationDate > DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)) AS NumNewT90d,
+    COUNTIF(FirstDonationDate > DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)) AS NumNewT12,
+    COUNTIF(TotalT12 > 0) AS NumT12,
+    COUNTIF(TotalT90d > 0) AS NumT90d,
+    COUNTIF(TotalT30d > 0) AS NumT30d,
+    COUNTIF(TotalPT12 > 0) AS NumPT12,
+    COUNTIF(TotalPT90d > 0) AS NumPT90d,
+    COUNTIF(TotalPT30d > 0) AS NumPT30d,
+    COUNTIF(FirstDonationDate > DATE_SUB(CURRENT_DATE(), INTERVAL 30 + 365 DAY)
+      AND FirstDonationDate < DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)) AS NumNewPT30d,
+    COUNTIF(FirstDonationDate > DATE_SUB(CURRENT_DATE(), INTERVAL 90 + 365 DAY)
+      AND FirstDonationDate < DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)) AS NumNewPT90d,
+    COUNTIF(FirstDonationDate > DATE_SUB(CURRENT_DATE(), INTERVAL 365 + 365 DAY)
+      AND FirstDonationDate < DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)) AS NumNewPT12,
+  FROM
+    totals
+  FULL OUTER JOIN
+    previous_totals
+  USING
+    (GivingNumber)
+  FULL OUTER JOIN
+    ${ref("Views", "household_stats")}
+  USING
+    (GivingNumber) );

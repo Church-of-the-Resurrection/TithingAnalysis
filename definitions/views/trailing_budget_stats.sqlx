@@ -1,0 +1,42 @@
+config {
+    type: "operations",
+    schema: "Views",
+    hasOutput: true
+}
+
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    annual_budget AS (
+    SELECT
+      2049996 AS budget_total ),
+    fund_totals AS (
+    SELECT
+      (
+      SELECT
+        budget_total
+      FROM
+        annual_budget) AS budget_total,
+      SUM(TotalT12) AS TotalT12,
+      SUM(TotalT30d) AS TotalT30,
+      SUM(TotalT90d) AS TotalT90,
+      SUM(TotalPT12) AS TotalPT12,
+      SUM(TotalPT30d) AS TotalPT30,
+      SUM(TotalPT90d) AS TotalPT90,
+    FROM
+      ${ref("Views", "trailing_fund_stats")} )
+  SELECT
+    TotalT12 / budget_total AS BudgetPercentT12,
+    TotalT12 - budget_total AS BudgetDeltaT12,
+    TotalPT12 / budget_total AS BudgetPercentPT12,
+    TotalPT12 - budget_total AS BudgetDeltaPT12,
+    TotalT90 / (budget_total / 4) AS BudgetPercentT90d,
+    TotalT90 - (budget_total / 4) AS BudgetDeltaT90,
+    TotalPT90 / (budget_total / 4) AS BudgetPercentPT90d,
+    TotalPT90 - (budget_total / 4) AS BudgetDeltaPT90,
+    TotalT30 / (budget_total / 12) AS BudgetPercentT30d,
+    TotalT30 - (budget_total / 12) AS BudgetDeltaT30,
+    TotalPT30 / (budget_total / 12) AS BudgetPercentPT30d,
+    TotalPT30 - (budget_total / 12) AS BudgetDeltaPT30,
+  FROM
+    fund_totals );

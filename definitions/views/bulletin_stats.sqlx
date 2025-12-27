@@ -4,34 +4,19 @@ config {
     hasOutput: true
 }
 
-CREATE OR REPLACE VIEW ${self()} AS (
-WITH annual_budget as (
-  SELECT 2049996 as budget_total
-), totals as (
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    latest_week AS (
+    SELECT
+      MAX(GiftWeek) AS latest_week
+    FROM
+      ${ref("Views", "weekly_fund_stats")} )
   SELECT
-    (SELECT budget_total FROM annual_budget) as budget_total,
-    SUM(TotalT12) as TotalT12,
-    SUM(TotalT30d) as TotalT30,
-    SUM(TotalT90d) as TotalT90,
-    SUM(TotalPT12) as TotalPT12,
-    SUM(TotalPT30d) as TotalPT30,
-    SUM(TotalPT90d) as TotalPT90,
-  FROM ${ref("Views", "fund_stats")}
-)
-SELECT 
-  TotalT12 / budget_total as PercentT12,
-  TotalT12 - budget_total as DeltaT12, 
-  TotalPT12 / budget_total as PercentPT12,
-  TotalPT12 - budget_total as DeltaPT12,
-
-  TotalT90 / (budget_total / 4) as PercentT90d,
-  TotalT90 - (budget_total / 4) as DeltaT90,
-  TotalPT90 / (budget_total / 4) as PercentPT90d,
-  TotalPT90 - (budget_total / 4) as DeltaPT90,
-
-  TotalT30 / (budget_total / 12) as PercentT30d,
-  TotalT30 - (budget_total / 12) as DeltaT30,
-  TotalPT30 / (budget_total / 12) as PercentPT30d,
-  TotalPT30 - (budget_total / 12) as DeltaPT30,
-FROM totals
-);
+    *
+  FROM
+    latest_week
+  CROSS JOIN
+    ${ref("Views", "trailing_budget_stats")}
+  CROSS JOIN
+    ${ref("Views", "trailing_household_stats")} );
