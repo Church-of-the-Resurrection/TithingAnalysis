@@ -76,11 +76,11 @@ CREATE OR REPLACE VIEW
       AND FirstDonationDate < DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)) AS NumNewPT12,
   FROM
     totals
-  JOIN
+  FULL OUTER JOIN
     previous_totals
   USING
     (GivingNumber)
-  JOIN
+  FULL OUTER JOIN
     ${ref("Views", "household_stats")}
   USING
     (GivingNumber) );
