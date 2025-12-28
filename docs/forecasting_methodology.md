@@ -1,4 +1,10 @@
-# Collection Forecasting Methodology
+The previous methodology summary I provided was a template for you to create. Since FORECASTING_METHODOLOGY.md does not exist in your repository yet, here is the updated version that you should create. It now includes the "Proxy Pledge" logic (Layer 1.5) in the Pledged Revenue section.
+
+You can copy and save this content as FORECASTING_METHODOLOGY.md in your definitions/ folder.
+
+Markdown
+
+# Revenue Forecasting Methodology
 
 ## Executive Summary
 This project utilizes a **"Layer Cake" Component-Based Forecasting Strategy**. Instead of forcing a single machine learning model to predict highly variable revenue streams, we split the church's revenue into four distinct "layers" based on donor behavior and predictability. Each layer is forecasted using the mathematical model best suited for its specific volatility profile.
@@ -7,13 +13,16 @@ This project utilizes a **"Layer Cake" Component-Based Forecasting Strategy**. I
 
 ### Layer 1: Pledged Revenue (The Foundation)
 * **Description:** Revenue from donors who have made a formal commitment for the year. This is our highest-certainty revenue stream.
-* **Method:** Deterministic Calculation.
+* **Method:** Deterministic Calculation with Automated "Proxy" Projection.
 * **Logic:**
-    * Takes the **Total Pledged Amount** for the target year (e.g., 2026).
-    * Applies a **Rolling 3-Year Seasonality Curve**. This curve is dollar-weighted (capturing the "January Lump Sum" behavior of major donors) rather than donor-weighted.
-    * Applies a standard **Fulfillment Rate** (default 98%) to account for unfulfilled pledges.
-* **Why:** Machine learning models often lag in detecting pledge drops. This method allows the forecast to react immediately to stewardship campaign results.
-* **Files:** `pledged_contributions.sqlx`, `pledge_seasonality.sqlx`
+    * **Actuals:** If pledge cards for the target year (e.g., 2026) have been entered, the model uses the real `TotalPledged` amount.
+    * **Proxy Projection (The Safety Net):** If pledge cards are missing (e.g., forecasting 2026 in late 2025), the model automatically calculates a "Proxy Total" based on historical growth:
+        * *Formula:* `Last Year's Total * (1 + Average Historical Growth Rate)`.
+        * This ensures the dashboard always shows a "Status Quo" scenario rather than dropping to zero before the campaign is finished.
+    * **Seasonality:** Applies a **Rolling 3-Year Dollar-Weighted Seasonality Curve**. This captures the "January Lump Sum" behavior of major donors, which donor-weighted averages typically miss.
+    * **Fulfillment:** Applies a standard **Fulfillment Rate** (default 98%) to account for unfulfilled pledges.
+* **Why:** This method provides immediate feedback on stewardship campaigns while maintaining a realistic baseline when data is incomplete.
+* **Files:** `pledged_contributions.sqlx`, `pledge_seasonality.sqlx`, `projected_pledge_totals.sqlx`
 
 ### Layer 2: Unpledged Core Giving (The Trend)
 * **Description:** "Plate collections" and regular electronic giving from non-pledged donors. Defined as Ordinary gifts under $2,500.
@@ -57,9 +66,10 @@ The forecast is generated through a pipeline of SQLX files:
 1.  **Sources:** Raw data is ingested from `contributions` and `pledges`.
 2.  **Models:**
     * `pledge_seasonality` calculates the monthly distribution % from the last 3 years of data.
+    * `projected_pledge_totals` calculates the historical year-over-year growth rate for pledges.
     * `core_contribution_forecast` trains the ARIMA model.
 3.  **Forecast Views:**
-    * `pledged_contributions`: Generates the Layer 1 forecast.
+    * `pledged_contributions`: Generates the Layer 1 forecast (combining Actuals + Projections).
     * `core_contributions`: Formats the ARIMA output (Layer 2).
     * `large_contributions`: Calculates the statistical baseline for Layer 3.
     * `extraordinary_contributions`: Calculates the statistical baseline for Layer 4.
