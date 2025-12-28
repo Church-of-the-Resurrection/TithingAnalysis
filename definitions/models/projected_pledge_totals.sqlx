@@ -1,0 +1,58 @@
+config {
+    type: "view",
+    schema: "Models",
+    description: "Calculates historical pledge growth rates and projects the next year's total."
+}
+
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    AnnualTotals AS (
+    SELECT
+      -- Ensure Year is an integer for math
+      CAST(PledgeYear AS INT64) AS Year,
+      SUM(Amount) AS total_amount
+    FROM
+      ${ref("pledges")}
+    GROUP BY
+      1 ),
+    GrowthRates AS (
+    SELECT
+      cur.Year,
+      cur.total_amount,
+      -- Calculate Year-over-Year Growth %
+      SAFE_DIVIDE(cur.total_amount - prev.total_amount, prev.total_amount) AS growth_pct
+    FROM
+      AnnualTotals cur
+      -- Join to previous year to find growth
+    JOIN
+      AnnualTotals PREV
+    ON
+      cur.Year = prev.Year + 1 ),
+    AverageGrowth AS (
+      -- Get the average growth rate. Default to 5% (0.05) if no history exists yet.
+    SELECT
+      IFNULL(AVG(growth_pct), 0.05) AS avg_growth_rate
+    FROM
+      GrowthRates ),
+    LatestYear AS (
+      -- Grab the most recent year's actuals to build off of
+    SELECT
+      Year,
+      total_amount
+    FROM
+      AnnualTotals
+    ORDER BY
+      Year DESC
+    LIMIT
+      1 )
+  SELECT
+    -- Project for Next Year (e.g., if max is 2025, create 2026)
+    CAST(ly.Year + 1 AS STRING) AS PledgeYear,
+    -- Logic: Last Year's Total * (1 + Average Growth Rate)
+    CAST(ly.total_amount * (1 + ag.avg_growth_rate) AS NUMERIC) AS total_pledged_amount,
+    'Estimated' AS status
+  FROM
+    LatestYear ly
+  CROSS JOIN
+    AverageGrowth ag )
