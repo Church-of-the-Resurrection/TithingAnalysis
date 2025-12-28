@@ -1,47 +1,37 @@
 config {
     type: "view",
     schema: "Forecasts",
-    description: "Forecasts major gifts (>2500) for ORDINARY funds (Starting with '1') only, excluding pledged donors."
+    description: "Forecasts EXTRAORDINARY funds (Not starting with '1'). Uses statistical baseline due to volatility."
 }
 
 CREATE OR REPLACE VIEW
   ${self()} AS (
   WITH
-    UnpledgedMajorGifts AS (
+    ExtraordinaryGifts AS (
     SELECT
       EXTRACT(MONTH
       FROM
-        c.GiftDate) AS month_num,
-      SUM(c.Amount) AS monthly_total
+        GiftDate) AS month_num,
+      SUM(Amount) AS monthly_total
     FROM
-      ${ref("contributions_table")} c
-    LEFT JOIN
-      ${ref("pledges")} p
-    ON
-      c.GivingNumber = p.GivingNumber
-      AND EXTRACT(YEAR
-      FROM
-        c.GiftDate) = CAST(p.PledgeYear AS INT64)
+      ${ref("contributions_table")}
     WHERE
-      c.Amount > 2500
-      AND p.GivingNumber IS NULL
-      -- Exclude Pledgers
-      AND STARTS_WITH(c.FundName, '1')
-      -- Only Ordinary Funds
+      NOT STARTS_WITH(FundName, '1')
+      -- Everything else
     GROUP BY
       1,
       EXTRACT(YEAR
       FROM
-        c.GiftDate) ),
+        GiftDate) ),
     Stats AS (
     SELECT
       month_num,
-      -- Weighted mix: 70% Median / 30% Average
-      (APPROX_QUANTILES(monthly_total, 100)[
-      OFFSET
-        (50)] * 0.7) + (AVG(monthly_total) * 0.3) AS safe_forecast_amount
+      -- Use Median to be conservative with sporadic projects
+      APPROX_QUANTILES(monthly_total, 100)[
+    OFFSET
+      (50)] AS safe_forecast_amount
     FROM
-      UnpledgedMajorGifts
+      ExtraordinaryGifts
     GROUP BY
       1 ),
     Timeline AS (
@@ -51,7 +41,7 @@ CREATE OR REPLACE VIEW
       UNNEST(GENERATE_DATE_ARRAY( DATE_TRUNC(CURRENT_DATE(), MONTH), DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH), INTERVAL 1 MONTH )) AS date )
   SELECT
     t.date AS forecast_month,
-    '3. Unpledged Major (Ordinary)' AS contribution_type,
+    '4. Extraordinary / Restricted' AS contribution_type,
     CAST(IFNULL(s.safe_forecast_amount, 0) AS INT64) AS forecast_value,
     CAST(IFNULL(s.safe_forecast_amount, 0) * 0.8 AS INT64) AS prediction_interval_lower_bound,
     CAST(IFNULL(s.safe_forecast_amount, 0) * 1.2 AS INT64) AS prediction_interval_upper_bound
