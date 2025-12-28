@@ -1,0 +1,15 @@
+SELECT
+  forecast_month,
+  "Core" AS forecast_type,
+  forecast_amount
+FROM
+  ${ref("Forecasts", "core_contributions")}
+UNION ALL
+SELECT
+  forecast_month,
+  "Large" AS forecast_type,
+  forecast_value
+FROM
+  ${ref("Forecasts", "large_contributions")}
+ORDER BY
+  forecast_month

@@ -1,0 +1,61 @@
+config {
+    type: "view",
+    schema: "Forecasts",
+    description: "Forecasts major gifts (>2500) using a conservative monthly average"
+}
+
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    MajorGifts AS (
+    SELECT
+      EXTRACT(MONTH
+      FROM
+        GiftDate) AS month_num,
+      SUM(Amount) AS monthly_total
+    FROM
+      ${ref("contributions_table")}
+    WHERE
+      Amount > 2500
+      -- The Non-Core Threshold
+    GROUP BY
+      1,
+      EXTRACT(YEAR
+      FROM
+        GiftDate) ),
+    Stats AS (
+    SELECT
+      month_num,
+      -- The Average is often skewed high by one millionaire.
+      -- We use a weighted mix: 70% Median / 30% Average to be safe.
+      (APPROX_QUANTILES(monthly_total, 100)[
+      OFFSET
+        (50)] * 0.7) + (AVG(monthly_total) * 0.3) AS safe_forecast_amount
+    FROM
+      MajorGifts
+    GROUP BY
+      1 ),
+    -- Generate the timeline dynamically to match the Core model
+    -- Starts at the 1st of the CURRENT month and goes out 12 months
+    Timeline AS (
+    SELECT
+      date
+    FROM
+      UNNEST(GENERATE_DATE_ARRAY( DATE_TRUNC(CURRENT_DATE(), MONTH), DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH), INTERVAL 1 MONTH )) AS date )
+  SELECT
+    t.date AS forecast_month,
+    'Non-Core (>2500)' AS contribution_type,
+    -- Map the month number (1-12) from the date to the stats
+    CAST(s.safe_forecast_amount AS INT64) AS forecast_value,
+    CAST(s.safe_forecast_amount * 0.8 AS INT64) AS prediction_interval_lower_bound,
+    CAST(s.safe_forecast_amount * 1.2 AS INT64) AS prediction_interval_upper_bound
+  FROM
+    Timeline t
+  LEFT JOIN
+    Stats s
+  ON
+    EXTRACT(MONTH
+    FROM
+      t.date) = s.month_num
+  ORDER BY
+    1 )
