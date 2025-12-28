@@ -1,43 +1,53 @@
-
 config {
-  type: "table",
-  description: "Master 2026 Forecast combining Pledges, Unpledged Trends, and Major Gift Baselines"
+    type: "table",
+    description: "Master 2026 Forecast combining Pledges, Unpledged Trends, Major Gifts, and Extraordinary items"
 }
 
--- 1. Pledged Revenue (The Foundation)
--- This uses your new 3-year weighted seasonality curve + 2026 Pledge Totals
-SELECT 
-  forecast_month,
-  '1. Pledged Revenue' as contribution_type,
-  forecast_value,
-  prediction_interval_lower_bound,
-  prediction_interval_upper_bound
-FROM ${ref("pledged_contributions")}
-WHERE forecast_month >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-
-UNION ALL
-
--- 2. Unpledged Core Giving (The Variable)
--- This is the ARIMA prediction for people who did NOT pledge (and gave <$2500)
-SELECT 
-  forecast_month as forecast_month,
-  '2. Unpledged Core' as contribution_type,
-  forecast_amount,
-  safe_estimate_amount,
-  optimistic_estimate_amount
-FROM ${ref("core_contributions")}
-
-UNION ALL
-
--- 3. Non-Core / Major Gifts (The Bonus)
--- This is the conservative baseline for gifts >$2500
+  -- 1. Pledged Revenue (The Foundation)
 SELECT
   forecast_month,
-  '3. Major Gifts (>2.5k)' as contribution_type,
+  '1. Pledged Revenue' AS contribution_type,
   forecast_value,
   prediction_interval_lower_bound,
   prediction_interval_upper_bound
-FROM ${ref("large_contributions")}
-WHERE forecast_month >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-
-ORDER BY forecast_month, contribution_type
+FROM
+  ${ref("pledged_contributions")}
+WHERE
+  forecast_month >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+UNION ALL
+  -- 2. Unpledged Core Giving (The Variable)
+SELECT
+  forecast_month,
+  '2. Unpledged Core' AS contribution_type,
+  forecast_amount AS forecast_value,
+  safe_estimate_amount AS prediction_interval_lower_bound,
+  optimistic_estimate_amount AS prediction_interval_upper_bound
+FROM
+  ${ref("core_contributions")}
+UNION ALL
+  -- 3. Unpledged Major (Ordinary)
+SELECT
+  forecast_month,
+  contribution_type,
+  forecast_value,
+  prediction_interval_lower_bound,
+  prediction_interval_upper_bound
+FROM
+  ${ref("large_contributions")}
+WHERE
+  forecast_month >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+UNION ALL
+  -- 4. Extraordinary / Restricted
+SELECT
+  forecast_month,
+  contribution_type,
+  forecast_value,
+  prediction_interval_lower_bound,
+  prediction_interval_upper_bound
+FROM
+  ${ref("extraordinary_contributions")}
+WHERE
+  forecast_month >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+ORDER BY
+  forecast_month,
+  contribution_type
