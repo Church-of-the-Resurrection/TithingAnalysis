@@ -1,0 +1,22 @@
+config {
+  type: "operations",
+  hasOutput: true,
+  schema: "Models",
+  description: "Trains the ARIMA_PLUS model on split donation data"
+}
+
+CREATE OR REPLACE MODEL ${self()}
+OPTIONS(
+  model_type = 'ARIMA_PLUS',
+  time_series_timestamp_col = 'GiftMonth',
+  time_series_data_col = 'Total',
+  data_frequency = 'AUTO_FREQUENCY',
+  holiday_region = 'US'
+) AS
+SELECT
+  GiftMonth,
+  SUM(Total) as Total
+FROM
+  ${ref("Views", "monthly_fund_stats")}
+WHERE IsCore AND IsOrdinary
+GROUP BY 1

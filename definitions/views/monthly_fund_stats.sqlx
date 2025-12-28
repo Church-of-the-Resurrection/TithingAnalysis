@@ -1,0 +1,26 @@
+config {
+    type: "operations",
+    schema: "Views",
+    hasOutput: true, 
+}
+CREATE OR REPLACE MATERIALIZED VIEW ${self()}
+OPTIONS (
+    max_staleness = INTERVAL "4:0:0" HOUR TO SECOND
+)
+AS (
+  SELECT
+    FundName,
+    FundCode,
+    STARTS_WITH(FundName, "1") AS IsOrdinary,
+    Amount <= 2500 AS IsCore,
+    DATE_TRUNC(GiftDate, MONTH) as GiftMonth,
+    SUM(ROUND(Amount, 2)) as Total
+FROM
+  ${ref("contributions_table")}
+GROUP BY
+  FundName,
+  FundCode,
+  IsOrdinary,
+  IsCore,
+  GiftMonth
+);
