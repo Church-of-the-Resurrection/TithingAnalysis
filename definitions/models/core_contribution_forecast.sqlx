@@ -19,5 +19,6 @@ FROM
 WHERE
   IsCore
   AND IsOrdinary
+  AND GiftMonth < DATE_TRUNC(CURRENT_DATE(), MONTH)
 GROUP BY
   1
