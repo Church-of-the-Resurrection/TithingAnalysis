@@ -1,0 +1,39 @@
+config {
+    type: "view",
+    schema: "Forecasts"
+}
+
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    MonthlyActuals AS (
+      -- 1. Pre-calculate the Actual totals to get 1 row per month
+    SELECT
+      GiftMonth,
+      SUM(Total) AS actual_monthly_total
+    FROM
+      ${ref("Views", "monthly_fund_stats")}
+    WHERE
+      IsPledged = TRUE
+      AND IsOrdinary = TRUE
+    GROUP BY
+      1 )
+  SELECT
+    pcf.forecast_month,
+    -- Now this sums correctly because the join is 1-to-1
+    SUM(pcf.forecast_value) AS predicted_pledge_revenue,
+    SUM(ma.actual_monthly_total) AS actual_revenue,
+    ROUND((SUM(ma.actual_monthly_total) - SUM(pcf.forecast_value)), 2) AS variance,
+    ROUND(1 - (SUM(ma.actual_monthly_total) / SUM(pcf.forecast_value)), 2) AS fulfillment_error
+  FROM
+    ${ref("Forecasts", "pledged_contributions")} pcf
+  JOIN
+    MonthlyActuals ma
+  ON
+    pcf.forecast_month = ma.GiftMonth
+  WHERE
+    DATE_TRUNC(pcf.forecast_month, YEAR) < DATE_TRUNC(CURRENT_DATE(), YEAR)
+  GROUP BY
+    1
+  ORDER BY
+    1 DESC )

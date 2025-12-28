@@ -10,14 +10,23 @@ CREATE OR REPLACE MATERIALIZED VIEW
     FundName,
     FundCode,
     STARTS_WITH(FundName, "1") AS IsOrdinary,
-    Amount <= 2500 AS IsCore,
+    p.Amount > 0 AS IsPledged,
+    c.Amount <= 2500 AS IsCore,
     DATE_TRUNC(GiftDate, MONTH) AS GiftMonth,
-    SUM(ROUND(Amount, 2)) AS Total
+    SUM(ROUND(c.Amount, 2)) AS Total
   FROM
-    ${ref("contributions_table")}
+    ${ref("contributions_table")} c
+  LEFT JOIN
+    ${ref("pledges")} p
+  ON
+    c.GivingNumber = p.GivingNumber
+    AND EXTRACT(YEAR
+    FROM
+      c.GiftDate) = p.PledgeYear
   GROUP BY
     FundName,
     FundCode,
     IsOrdinary,
+    IsPledged,
     IsCore,
     GiftMonth );

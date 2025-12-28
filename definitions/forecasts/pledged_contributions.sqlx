@@ -1,0 +1,40 @@
+config {
+  type: "view",
+  schema: "Forecasts",
+  description: "Forecasts pledged revenue for ALL years (historical and future) based on pledge totals and seasonality. Useful for backtesting accuracy."
+}
+
+CREATE OR REPLACE VIEW ${self()} AS (
+WITH AnnualPledges AS (
+  -- Aggregate pledges by Year (e.g., 2024: $1.4M, 2025: $1.6M, 2026: ...)
+  SELECT 
+    PledgeYear,
+    SUM(Amount) as total_pledged_amount
+  FROM ${ref("pledges")} -- Replace with your actual pledge table name
+  GROUP BY 1
+),
+
+Seasonality AS (
+  -- Bring in the monthly distribution curve (1-12)
+  SELECT month_num, seasonality_pct
+  FROM ${ref("pledge_seasonality")}
+)
+
+SELECT
+  -- Construct the date dynamically: Year-Month-01
+  DATE(CAST(ap.PledgeYear as INT64), s.month_num, 1) as forecast_month,
+  
+  'Pledged Revenue' as contribution_type,
+  
+  -- The Forecast Formula: Total Pledged * Seasonality * Fulfillment Rate
+  -- We use the standard 98% fulfillment rate for consistent backtesting.
+  CAST(ap.total_pledged_amount * 0.98 * s.seasonality_pct AS INT64) as forecast_value,
+  
+  -- Confidence Intervals
+  CAST(ap.total_pledged_amount * 0.95 * s.seasonality_pct AS INT64) as prediction_interval_lower_bound,
+  CAST(ap.total_pledged_amount * 1.00 * s.seasonality_pct AS INT64) as prediction_interval_upper_bound
+
+FROM AnnualPledges ap
+CROSS JOIN Seasonality s
+ORDER BY 1 DESC
+)
