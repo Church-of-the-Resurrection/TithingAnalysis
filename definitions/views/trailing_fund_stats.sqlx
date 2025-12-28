@@ -7,7 +7,7 @@ config {
 CREATE OR REPLACE VIEW
   ${self()} AS (
   SELECT
-    NOT STARTS_WITH(FundName, "1") AS IsExtraordinary,
+    IsExtraordinary,
     ROUND(SUM(
       IF
         ( GiftWeek >= DATE_TRUNC(CURRENT_DATE(), YEAR), Total, 0 )), 2) AS TotalYTD,
