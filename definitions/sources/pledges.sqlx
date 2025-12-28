@@ -1,0 +1,24 @@
+config {
+    type: "operations",
+    hasOutput: true, // Essential to allow other models to use ref()
+    schema: "Inputs", // The dataset where the external table will live
+    name: "pledges", // The name of the table in BigQuery
+    tags: ["external_sources"]
+}
+CREATE OR REPLACE EXTERNAL TABLE
+  ${self()} (
+    -- Optionally define schema explicitly for better performance/control
+    GivingNumber INT64,
+    Amount FLOAT64,
+    PledgeYear NUMERIC,
+    Unused1 STRING,
+    Unused2 STRING)
+WITH CONNECTION `projects/finance-council/locations/us/connections/asdf`    
+OPTIONS ( format = 'CSV',
+    uris = ['gs://pledges_csv_files/*.csv'],
+    skip_leading_rows = 1,              -- Skip header row
+    field_delimiter = ',',              -- Set delimiter
+    allow_quoted_newlines = FALSE,      -- Handle complex CSVs
+    metadata_cache_mode = 'AUTOMATIC',  -- Enables the cache
+    max_staleness = INTERVAL 1 HOUR     -- How old cache can be
+    );
