@@ -1,8 +1,7 @@
-
 config {
-  type: "table",
-  schema: "Views",
-  description: "Generates a 12-month forecast for Ordinary and Extraordinary giving"
+    type: "table",
+    schema: "Views",
+    description: "Generates a 12-month forecast for Ordinary and Extraordinary giving"
 }
 
 SELECT
@@ -11,6 +10,7 @@ SELECT
   ROUND(prediction_interval_lower_bound, 2) AS safe_estimate_amount,
   ROUND(prediction_interval_upper_bound, 2) AS optimistic_estimate_amount
 FROM
-  ML.FORECAST(MODEL ${ref("Models", "core_contribution_forecast")}, STRUCT(12 AS horizon))
+  ML.FORECAST(MODEL ${ref("Models", "core_contribution_forecast")},
+    STRUCT(12 AS horizon))
 ORDER BY
   forecast_timestamp
