@@ -1,40 +1,57 @@
 config {
-  type: "view",
-  schema: "Forecasts",
-  description: "Forecasts pledged revenue for ALL years (historical and future) based on pledge totals and seasonality. Useful for backtesting accuracy."
+    type: "view",
+    schema: "Forecasts",
+    description: "Forecasts pledged revenue for ALL years (historical and future) based on pledge totals and seasonality. Useful for backtesting accuracy."
 }
 
-CREATE OR REPLACE VIEW ${self()} AS (
-WITH AnnualPledges AS (
-  -- Aggregate pledges by Year (e.g., 2024: $1.4M, 2025: $1.6M, 2026: ...)
-  SELECT 
-    PledgeYear,
-    SUM(Amount) as total_pledged_amount
-  FROM ${ref("pledges")} -- Replace with your actual pledge table name
-  GROUP BY 1
-),
-
-Seasonality AS (
-  -- Bring in the monthly distribution curve (1-12)
-  SELECT month_num, seasonality_pct
-  FROM ${ref("pledge_seasonality")}
-)
-
-SELECT
-  -- Construct the date dynamically: Year-Month-01
-  DATE(CAST(ap.PledgeYear as INT64), s.month_num, 1) as forecast_month,
-  
-  'Pledged Revenue' as contribution_type,
-  
-  -- The Forecast Formula: Total Pledged * Seasonality * Fulfillment Rate
-  -- We use the standard 98% fulfillment rate for consistent backtesting.
-  CAST(ap.total_pledged_amount * 0.98 * s.seasonality_pct AS INT64) as forecast_value,
-  
-  -- Confidence Intervals
-  CAST(ap.total_pledged_amount * 0.95 * s.seasonality_pct AS INT64) as prediction_interval_lower_bound,
-  CAST(ap.total_pledged_amount * 1.00 * s.seasonality_pct AS INT64) as prediction_interval_upper_bound
-
-FROM AnnualPledges ap
-CROSS JOIN Seasonality s
-ORDER BY 1 DESC
-)
+CREATE OR REPLACE VIEW
+  ${self()} AS (
+  WITH
+    ActualPledges AS (
+    SELECT
+      PledgeYear,
+      SUM(Amount) AS total_pledged_amount
+    FROM
+      ${ref("pledges")}
+    GROUP BY
+      1 ),
+    -- Combine Actuals with the Projection
+    CombinedPledges AS (
+    SELECT
+      PledgeYear,
+      total_pledged_amount
+    FROM
+      ActualPledges
+    UNION ALL
+    SELECT
+      CAST(PledgeYear as INT64),
+      total_pledged_amount
+    FROM
+      ${ref("projected_pledge_totals")}
+      -- Only include the projection if we don't have actuals for that year yet
+    WHERE
+      CAST(PledgeYear AS NUMERIC) NOT IN (
+      SELECT
+        PledgeYear
+      FROM
+        ActualPledges) ),
+    Seasonality AS (
+    SELECT
+      month_num,
+      seasonality_pct
+    FROM
+      ${ref("pledge_seasonality")} )
+  SELECT
+    DATE(CAST(cp.PledgeYear AS INT64), s.month_num, 1) AS forecast_month,
+    '1. Pledged Revenue' AS contribution_type,
+    -- Apply the same Seasonality & 98% Fulfillment logic
+    CAST(cp.total_pledged_amount * 0.98 * s.seasonality_pct AS INT64) AS forecast_value,
+    -- Wider confidence intervals for the projected year (90% - 110%)
+    CAST(cp.total_pledged_amount * 0.90 * s.seasonality_pct AS INT64) AS prediction_interval_lower_bound,
+    CAST(cp.total_pledged_amount * 1.10 * s.seasonality_pct AS INT64) AS prediction_interval_upper_bound
+  FROM
+    CombinedPledges cp
+  CROSS JOIN
+    Seasonality s
+  ORDER BY
+    1 )
