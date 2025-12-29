@@ -1,0 +1,64 @@
+config {
+    type: "view",
+    schema: "Queries"
+}
+
+CREATE OR REPLACE VIEW ${self()} AS (
+    WITH
+  -- 1. Re-calculate the Actuals (Logic from extraordinary_contributions.sqlx)
+  ExtraordinaryGifts AS (
+    SELECT
+      EXTRACT(MONTH FROM GiftDate) AS month_num,
+      EXTRACT(YEAR FROM GiftDate) AS gift_year,
+      SUM(Amount) AS monthly_total
+    FROM
+      ${ref("contributions_table")}
+    WHERE
+      NOT STARTS_WITH(FundName, '1') -- Extraordinary Funds Only
+    GROUP BY
+      1, 2
+  ),
+
+  -- 2. Calculate the Baseline Stats (Median & Average)
+  Stats AS (
+    SELECT
+      month_num,
+      APPROX_QUANTILES(monthly_total, 100)[OFFSET(50)] AS median_val,
+      AVG(monthly_total) AS avg_val
+    FROM
+      ExtraordinaryGifts
+    GROUP BY
+      1
+  )
+
+-- 3. Compare Scenarios
+SELECT
+  eg.gift_year,
+  eg.month_num,
+  eg.monthly_total AS actual_revenue,
+
+  -- Scenario A: Current Policy (100% Median)
+  CAST(s.median_val AS INT64) AS forecast_current_median,
+  CAST(eg.monthly_total - s.median_val AS INT64) AS variance_median,
+
+  -- Scenario B: The "Layer 3 Mix" (70% Median / 30% Avg)
+  CAST((s.median_val * 0.7 + s.avg_val * 0.3) AS INT64) AS forecast_mix_70_30,
+  CAST(eg.monthly_total - (s.median_val * 0.7 + s.avg_val * 0.3) AS INT64) AS variance_70_30,
+
+  -- Scenario C: Balanced (50% Median / 50% Avg)
+  CAST((s.median_val * 0.5 + s.avg_val * 0.5) AS INT64) AS forecast_balanced_50_50,
+  CAST(eg.monthly_total - (s.median_val * 0.5 + s.avg_val * 0.5) AS INT64) AS variance_50_50,
+
+  -- Scenario D: Pure Average (100% Avg)
+  CAST(s.avg_val AS INT64) AS forecast_average,
+  CAST(eg.monthly_total - s.avg_val AS INT64) AS variance_average
+
+FROM
+  ExtraordinaryGifts eg
+JOIN
+  Stats s ON eg.month_num = s.month_num
+WHERE
+  eg.gift_year >= EXTRACT(YEAR FROM CURRENT_DATE()) - 3 -- Look at last 3 years
+ORDER BY
+  1 DESC, 2 DESC
+)

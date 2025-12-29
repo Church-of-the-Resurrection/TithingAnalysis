@@ -27,6 +27,7 @@ CREATE OR REPLACE VIEW
     SELECT
       month_num,
       -- Use Median to be conservative with sporadic projects
+      -- This was validated with queries/extraordinary_contributions_analysis.sqlx
       APPROX_QUANTILES(monthly_total, 100)[
     OFFSET
       (50)] AS safe_forecast_amount

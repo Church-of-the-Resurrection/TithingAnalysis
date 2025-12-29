@@ -36,10 +36,8 @@ CREATE OR REPLACE VIEW
     Stats AS (
     SELECT
       month_num,
-      -- Weighted mix: 70% Median / 30% Average
-      (APPROX_QUANTILES(monthly_total, 100)[
-      OFFSET
-        (50)] * 0.7) + (AVG(monthly_total) * 0.3) AS safe_forecast_amount
+      -- Not doing weighted avg. See queries/large_contributions_analysis.sqlx
+      APPROX_QUANTILES(monthly_total, 100)[OFFSET(50)] AS safe_forecast_amount
     FROM
       UnpledgedMajorGifts
     GROUP BY
@@ -49,7 +47,7 @@ CREATE OR REPLACE VIEW
       date
     FROM
       UNNEST(GENERATE_DATE_ARRAY( DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 24 MONTH),
-      -- Start 2 years ago
+          -- Start 2 years ago
           DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH),
           -- End 1 year from now
           INTERVAL 1 MONTH )) AS date )

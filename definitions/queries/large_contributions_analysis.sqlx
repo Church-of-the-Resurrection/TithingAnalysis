@@ -1,0 +1,71 @@
+config {
+    type: "view",
+    schema: "Queries"
+}
+
+CREATE OR REPLACE VIEW ${self()} AS (
+    WITH
+  -- 1. Re-calculate the Actuals (Same logic as large_contributions.sqlx)
+  UnpledgedMajorGifts AS (
+    SELECT
+      EXTRACT(MONTH FROM c.GiftDate) AS month_num,
+      EXTRACT(YEAR FROM c.GiftDate) AS gift_year,
+      SUM(c.Amount) AS monthly_total
+    FROM
+      ${ref("contributions_table")} c
+    LEFT JOIN
+      ${ref("pledges")} p
+    ON
+      c.GivingNumber = p.GivingNumber
+      AND EXTRACT(YEAR FROM c.GiftDate) = CAST(p.PledgeYear AS INT64)
+    WHERE
+      c.Amount > 2500
+      AND p.GivingNumber IS NULL
+      AND STARTS_WITH(c.FundName, '1') -- Ordinary Funds Only
+    GROUP BY
+      1, 2
+  ),
+
+  -- 2. Calculate the Baseline Stats (Median & Average)
+  Stats AS (
+    SELECT
+      month_num,
+      APPROX_QUANTILES(monthly_total, 100)[OFFSET(50)] AS median_val,
+      AVG(monthly_total) AS avg_val
+    FROM
+      UnpledgedMajorGifts
+    GROUP BY
+      1
+  )
+
+-- 3. Compare Scenarios
+SELECT
+  umg.gift_year,
+  umg.month_num,
+  umg.monthly_total AS actual_revenue,
+  
+  -- Scenario A: Current (70% Median / 30% Avg)
+  CAST((s.median_val * 0.7 + s.avg_val * 0.3) AS INT64) AS forecast_current_70_30,
+  CAST(umg.monthly_total - (s.median_val * 0.7 + s.avg_val * 0.3) AS INT64) AS variance_current,
+
+  -- Scenario B: Balanced (50% Median / 50% Avg)
+  CAST((s.median_val * 0.5 + s.avg_val * 0.5) AS INT64) AS forecast_balanced_50_50,
+  CAST(umg.monthly_total - (s.median_val * 0.5 + s.avg_val * 0.5) AS INT64) AS variance_50_50,
+
+  -- Scenario C: Aggressive (30% Median / 70% Avg)
+  CAST((s.median_val * 0.3 + s.avg_val * 0.7) AS INT64) AS forecast_aggressive_30_70,
+  CAST(umg.monthly_total - (s.median_val * 0.3 + s.avg_val * 0.7) AS INT64) AS variance_30_70,
+
+  -- Scenario D: Pure Conservative (100% Median)
+  CAST(s.median_val AS INT64) AS forecast_conservative_median,
+  CAST(umg.monthly_total - s.median_val AS INT64) AS variance_median
+
+FROM
+  UnpledgedMajorGifts umg
+JOIN
+  Stats s ON umg.month_num = s.month_num
+WHERE
+  umg.gift_year >= EXTRACT(YEAR FROM CURRENT_DATE()) - 3 -- Look at last 3 years
+ORDER BY
+  1 DESC, 2 DESC
+)
