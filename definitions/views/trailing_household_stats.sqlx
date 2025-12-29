@@ -1,7 +1,8 @@
 config {
     type: "operations",
     schema: "Views",
-    hasOutput: true
+    hasOutput: true,
+    tags: ["daily"]
 }
 
 CREATE OR REPLACE VIEW
