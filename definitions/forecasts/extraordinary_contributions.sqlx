@@ -38,7 +38,11 @@ CREATE OR REPLACE VIEW
     SELECT
       date
     FROM
-      UNNEST(GENERATE_DATE_ARRAY( DATE_TRUNC(CURRENT_DATE(), MONTH), DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH), INTERVAL 1 MONTH )) AS date )
+      UNNEST(GENERATE_DATE_ARRAY( DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 24 MONTH),
+      -- Start 2 years ago
+          DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH),
+          -- End 1 year from now
+          INTERVAL 1 MONTH )) AS date )
   SELECT
     t.date AS forecast_month,
     '4. Extraordinary / Restricted' AS contribution_type,
