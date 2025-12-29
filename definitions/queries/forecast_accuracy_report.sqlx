@@ -23,6 +23,7 @@ SELECT
 FROM Forecast f
 JOIN Actuals a ON f.forecast_month = a.month
 -- skip the current month which has a partial actual
-WHERE forecast_month < DATE_TRUNC(CURRENT_DATE(), MONTH) 
+WHERE forecast_month < DATE_TRUNC(CURRENT_DATE(), MONTH)
+AND forecast_month > DATE_SUB(CURRENT_DATE(), INTERVAL 3 YEAR)
 ORDER BY 1 DESC
 )

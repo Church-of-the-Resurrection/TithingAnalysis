@@ -1,0 +1,80 @@
+config {
+    type: "view",
+    schema: "Forecasts",
+    description: "Detailed variance analysis breaking down Actuals vs. Forecast for each of the 4 layers."
+}
+
+WITH LayerActuals AS (
+  SELECT
+    GiftMonth,
+    -- Layer 1: Pledged (Ordinary, Pledged)
+    -- Logic: Must match 'pledged_contributions' filter
+    SUM(IF(IFNULL(IsPledged, FALSE) AND IsOrdinary, Total, 0)) AS Actual_L1_Pledged,
+
+    -- Layer 2: Core (Ordinary, Unpledged, <= 2500)
+    -- Logic: Must match 'core_contribution_forecast' filter
+    SUM(IF(NOT IFNULL(IsPledged, FALSE) AND IsOrdinary AND IsCore, Total, 0)) AS Actual_L2_Core,
+
+    -- Layer 3: Major (Ordinary, Unpledged, > 2500)
+    -- Logic: Must match 'large_contributions' filter
+    SUM(IF(NOT IFNULL(IsPledged, FALSE) AND IsOrdinary AND NOT IsCore, Total, 0)) AS Actual_L3_Major,
+
+    -- Layer 4: Extraordinary (Not Ordinary)
+    -- Logic: Must match 'extraordinary_contributions' filter
+    SUM(IF(NOT IsOrdinary, Total, 0)) AS Actual_L4_Extra
+
+  FROM
+    ${ref("Views", "monthly_fund_stats")}
+  GROUP BY
+    1
+),
+
+LayerForecasts AS (
+  SELECT
+    forecast_month,
+    -- Pivot the forecast rows into columns for comparison
+    SUM(IF(contribution_type = '1. Pledged Revenue', forecast_value, 0)) AS Forecast_L1_Pledged,
+    SUM(IF(contribution_type = '2. Unpledged Core', forecast_value, 0)) AS Forecast_L2_Core,
+    SUM(IF(contribution_type = '3. Unpledged Major (Ordinary)', forecast_value, 0)) AS Forecast_L3_Major,
+    SUM(IF(contribution_type = '4. Extraordinary / Restricted', forecast_value, 0)) AS Forecast_L4_Extra
+  FROM
+    ${ref("Forecasts", "combined_contributions")}
+  GROUP BY
+    1
+)
+
+SELECT
+  f.forecast_month,
+  
+  -- LAYER 1: PLEDGED
+  f.Forecast_L1_Pledged,
+  a.Actual_L1_Pledged,
+  ROUND(a.Actual_L1_Pledged - f.Forecast_L1_Pledged, 0) as Var_L1,
+
+  -- LAYER 2: CORE
+  f.Forecast_L2_Core,
+  a.Actual_L2_Core,
+  ROUND(a.Actual_L2_Core - f.Forecast_L2_Core, 0) as Var_L2,
+
+  -- LAYER 3: MAJOR
+  f.Forecast_L3_Major,
+  a.Actual_L3_Major,
+  ROUND(a.Actual_L3_Major - f.Forecast_L3_Major, 0) as Var_L3,
+
+  -- LAYER 4: EXTRAORDINARY
+  f.Forecast_L4_Extra,
+  a.Actual_L4_Extra,
+  ROUND(a.Actual_L4_Extra - f.Forecast_L4_Extra, 0) as Var_L4,
+
+  -- TOTAL VARIANCE (To verify alignment with main report)
+  ROUND(
+    (a.Actual_L1_Pledged + a.Actual_L2_Core + a.Actual_L3_Major + a.Actual_L4_Extra) - 
+    (f.Forecast_L1_Pledged + f.Forecast_L2_Core + f.Forecast_L3_Major + f.Forecast_L4_Extra), 0
+  ) as Total_Variance_Check
+
+FROM
+  LayerForecasts f
+JOIN
+  LayerActuals a ON f.forecast_month = a.GiftMonth
+ORDER BY
+  1 DESC
