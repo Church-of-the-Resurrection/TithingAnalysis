@@ -1,4 +1,8 @@
 -- Run this and look for the row where core_volatility_cv column has a minima
+config {
+  type: "view",
+  tags: ["debug"]
+}
 
 WITH Thresholds AS (
   -- Define the potential thresholds to test

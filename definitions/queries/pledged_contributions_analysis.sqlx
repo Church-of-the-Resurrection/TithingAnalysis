@@ -1,10 +1,9 @@
 config {
     type: "view",
+    tags: ["debug"],
     schema: "Forecasts"
 }
 
-CREATE OR REPLACE VIEW
-  ${self()} AS (
   WITH
     MonthlyActuals AS (
       -- 1. Pre-calculate the Actual totals to get 1 row per month
@@ -36,4 +35,4 @@ CREATE OR REPLACE VIEW
   GROUP BY
     1
   ORDER BY
-    1 DESC )
+    1 DESC

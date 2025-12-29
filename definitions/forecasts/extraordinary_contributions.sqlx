@@ -1,62 +1,61 @@
 config {
     type: "view",
     schema: "Forecasts",
+    tags: ["daily"],
     description: "Forecasts EXTRAORDINARY funds (Not starting with '1'). Uses statistical baseline due to volatility."
 }
 
-CREATE OR REPLACE VIEW
-  ${self()} AS (
-  WITH
-    ExtraordinaryGifts AS (
-    SELECT
-      EXTRACT(MONTH
-      FROM
-        GiftMonth) AS month_num,
-      SUM(Total) AS monthly_total
-    FROM
-      ${ref("Views", "monthly_fund_stats")}
-    WHERE
-      NOT STARTS_WITH(FundName, '1')
-      -- Everything else
-    GROUP BY
-      1,
-      EXTRACT(YEAR
-      FROM
-        GiftMonth) ),
-    Stats AS (
-    SELECT
-      month_num,
-      -- Use Median to be conservative with sporadic projects
-      -- This was validated with queries/extraordinary_contributions_analysis.sqlx
-      APPROX_QUANTILES(monthly_total, 100)[
-    OFFSET
-      (50)] AS safe_forecast_amount
-    FROM
-      ExtraordinaryGifts
-    GROUP BY
-      1 ),
-    Timeline AS (
-    SELECT
-      date
-    FROM
-      UNNEST(GENERATE_DATE_ARRAY( DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 24 MONTH),
-      -- Start 2 years ago
-          DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH),
-          -- End 1 year from now
-          INTERVAL 1 MONTH )) AS date )
+WITH
+  ExtraordinaryGifts AS (
   SELECT
-    t.date AS forecast_month,
-    '4. Extraordinary / Restricted' AS contribution_type,
-    CAST(IFNULL(s.safe_forecast_amount, 0) AS INT64) AS forecast_value,
-    CAST(IFNULL(s.safe_forecast_amount, 0) * 0.8 AS INT64) AS prediction_interval_lower_bound,
-    CAST(IFNULL(s.safe_forecast_amount, 0) * 1.2 AS INT64) AS prediction_interval_upper_bound
-  FROM
-    Timeline t
-  LEFT JOIN
-    Stats s
-  ON
     EXTRACT(MONTH
     FROM
-      t.date) = s.month_num
-  ORDER BY
-    1 )
+      GiftMonth) AS month_num,
+    SUM(Total) AS monthly_total
+  FROM
+    ${ref("Views", "monthly_fund_stats")}
+  WHERE
+    NOT STARTS_WITH(FundName, '1')
+    -- Everything else
+  GROUP BY
+    1,
+    EXTRACT(YEAR
+    FROM
+      GiftMonth) ),
+  Stats AS (
+  SELECT
+    month_num,
+    -- Use Median to be conservative with sporadic projects
+    -- This was validated with queries/extraordinary_contributions_analysis.sqlx
+    APPROX_QUANTILES(monthly_total, 100)[
+  OFFSET
+    (50)] AS safe_forecast_amount
+  FROM
+    ExtraordinaryGifts
+  GROUP BY
+    1 ),
+  Timeline AS (
+  SELECT
+    date
+  FROM
+    UNNEST(GENERATE_DATE_ARRAY( DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 24 MONTH),
+        -- Start 2 years ago
+        DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH),
+        -- End 1 year from now
+        INTERVAL 1 MONTH )) AS date )
+SELECT
+  t.date AS forecast_month,
+  '4. Extraordinary / Restricted' AS contribution_type,
+  CAST(IFNULL(s.safe_forecast_amount, 0) AS INT64) AS forecast_value,
+  CAST(IFNULL(s.safe_forecast_amount, 0) * 0.8 AS INT64) AS prediction_interval_lower_bound,
+  CAST(IFNULL(s.safe_forecast_amount, 0) * 1.2 AS INT64) AS prediction_interval_upper_bound
+FROM
+  Timeline t
+LEFT JOIN
+  Stats s
+ON
+  EXTRACT(MONTH
+  FROM
+    t.date) = s.month_num
+ORDER BY
+  1

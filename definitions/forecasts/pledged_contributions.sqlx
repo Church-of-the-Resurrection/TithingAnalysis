@@ -1,11 +1,11 @@
 config {
     type: "view",
     schema: "Forecasts",
+    tags: ["daily"],
     description: "Forecasts pledged revenue for ALL years (historical and future) based on pledge totals and seasonality. Useful for backtesting accuracy."
 }
 
-CREATE OR REPLACE VIEW
-  ${self()} AS (
+
   WITH
     ActualPledges AS (
     SELECT
@@ -54,4 +54,4 @@ CREATE OR REPLACE VIEW
   CROSS JOIN
     Seasonality s
   ORDER BY
-    1 )
+    1 

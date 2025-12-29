@@ -5,36 +5,48 @@ config {
     description: "Calculates the monthly distribution % of pledged revenue based on history"
 }
 
-CREATE OR REPLACE VIEW ${self()} AS (
-WITH PledgedOrdinaryDonations AS (
+WITH
+  PledgedOrdinaryDonations AS (
   SELECT
-    EXTRACT(MONTH FROM d.GiftDate) as month_num,
-    SUM(d.Amount) as total_given_in_month
-  FROM ${ref("contributions_table")} d
-  JOIN ${ref("pledges")} p
-    ON d.GivingNumber = p.GivingNumber 
-    AND EXTRACT(YEAR FROM d.GiftDate) = p.PledgeYear
-  WHERE 
+    EXTRACT(MONTH
+    FROM
+      d.GiftDate) AS month_num,
+    SUM(d.Amount) AS total_given_in_month
+  FROM
+    ${ref("contributions_table")} d
+  JOIN
+    ${ref("pledges")} p
+  ON
+    d.GivingNumber = p.GivingNumber
+    AND EXTRACT(YEAR
+    FROM
+      d.GiftDate) = p.PledgeYear
+  WHERE
     -- Filter for Ordinary funds only so the curve matches the "Pledge" behavior
     -- Adjust these names to match your exact fund list
-    STARTS_WITH(d.FundName, '1') 
-    AND EXTRACT(YEAR FROM d.GiftDate) >= EXTRACT(YEAR FROM CURRENT_DATE()) - 3
-  GROUP BY 1
-),
-
-TotalHistory AS (
-  -- Calculate the Grand Total of all relevant history
-  SELECT SUM(total_given_in_month) as global_total
-  FROM PledgedOrdinaryDonations
-)
-
+    STARTS_WITH(d.FundName, '1')
+    AND EXTRACT(YEAR
+    FROM
+      d.GiftDate) >= EXTRACT(YEAR
+    FROM
+      CURRENT_DATE()) - 3
+  GROUP BY
+    1 ),
+  TotalHistory AS (
+    -- Calculate the Grand Total of all relevant history
+  SELECT
+    SUM(total_given_in_month) AS global_total
+  FROM
+    PledgedOrdinaryDonations )
 SELECT
   pod.month_num,
-  -- Weighted Calculation: 
+  -- Weighted Calculation:
   -- (Total $ given in all Januaries) / (Total $ given in History)
   -- This accurately captures "Lump Sum" behavior of major donors.
-  SAFE_DIVIDE(pod.total_given_in_month, th.global_total) as seasonality_pct
-FROM PledgedOrdinaryDonations pod
-CROSS JOIN TotalHistory th
-ORDER BY 1)
-
+  SAFE_DIVIDE(pod.total_given_in_month, th.global_total) AS seasonality_pct
+FROM
+  PledgedOrdinaryDonations pod
+CROSS JOIN
+  TotalHistory th
+ORDER BY
+  1
