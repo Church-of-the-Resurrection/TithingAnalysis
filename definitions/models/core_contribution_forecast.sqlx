@@ -2,6 +2,7 @@ config {
     type: "operations",
     hasOutput: true,
     schema: "Models",
+    tags: ["forecasting"],
     description: "Trains the ARIMA_PLUS model on split donation data"
 }
 
