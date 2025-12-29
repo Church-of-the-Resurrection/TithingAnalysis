@@ -56,6 +56,21 @@ The forecast is generated through a pipeline of SQLX files:
 3.  **Forecast Views:** Individual outputs for Layers 1–4.
 4.  **Reporting:** `combined_contributions` unites all layers for the final dashboard.
 
+### Architecture & Optimization Standards
+To ensure performance and control BigQuery costs, all development must adhere to the following optimization patterns:
+
+1.  **Native Tables over External Files:**
+    * **Principle:** Scanning external CSVs (Google Drive/Cloud Storage) is slow and incurs "bytes scanned" costs for every query.
+    * **Standard:** Do not query external sources directly in forecasting models. Instead, create a "Stage" layer (e.g., `stg_contributions`) that ingests the raw CSV into a Native BigQuery Table. All downstream dependencies must reference the native table.
+
+2.  **Pre-Aggregation (The "Summary" Pattern):**
+    * **Principle:** Do not scan the entire transaction history (thousands of rows) to calculate high-level metrics like "Median Monthly Giving."
+    * **Standard:** Use intermediate tables like `monthly_fund_stats`. This table aggregates raw transactions into a concise "One Row Per Month" format. Layers 3 & 4 must query this summary table, reducing scan volume by >99%.
+
+3.  **Materialization of Complex Models (Compute Once, Read Many):**
+    * **Principle:** Complex joins and window functions (e.g., Seasonality Curves) should not be re-calculated every time a user views a dashboard.
+    * **Standard:** Models like `pledge_seasonality` and `monthly_fund_stats` are defined as `type: "table"`. This forces the pipeline to compute the heavy math once during the daily run, saving the results physically. Downstream views then read the static result instantly.
+
 ## Operational Maintenance
 * **ARIMA Model Retraining:** The machine learning model (`Models/core_contribution_forecast`) is **stateful**. It does *not* automatically update when new data arrives. You must explicitly run the `CREATE OR REPLACE MODEL` operation at least **once per month** (ideally on the 1st) to incorporate the latest month's data into the trend lines.
 * **Fulfillment Rate Calibration:** The 98% fulfillment rate in Layer 1 is hardcoded. This should be audited annually in January by comparing `TotalPledged` vs `TotalGiven` for the closed year.

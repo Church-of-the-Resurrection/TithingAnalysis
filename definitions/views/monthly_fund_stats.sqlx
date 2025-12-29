@@ -1,11 +1,11 @@
 config {
-    type: "operations",
+    type: "table",
     schema: "Views",
-    hasOutput: true,
+    description: "Pre-aggregated monthly stats by fund, including Pledged status",
+    tags: ["daily"]
 }
 
-CREATE OR REPLACE MATERIALIZED VIEW
-  ${self()} OPTIONS ( max_staleness = INTERVAL "4:0:0" HOUR TO SECOND ) AS (
+
   SELECT
     FundName,
     FundCode,
@@ -31,4 +31,4 @@ CREATE OR REPLACE MATERIALIZED VIEW
     IsPledged,
     IsCore,
     GiftMonth,
-    GiftYear );
+    GiftYear
