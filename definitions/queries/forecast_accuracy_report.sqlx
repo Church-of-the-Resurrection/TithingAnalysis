@@ -1,0 +1,28 @@
+config {
+    type: "view",
+    schema: "Queries"
+}
+
+CREATE OR REPLACE VIEW ${self()} AS (
+WITH Actuals AS (
+    SELECT GiftMonth as month, SUM(Total) as actual_total
+    FROM ${ref("Views", "monthly_fund_stats")}
+    GROUP BY 1
+),
+Forecast AS (
+    SELECT forecast_month, SUM(forecast_value) as predicted_total
+    FROM ${ref("combined_contributions")}
+    GROUP BY 1
+)
+SELECT
+    f.forecast_month,
+    f.predicted_total,
+    a.actual_total,
+    (a.actual_total - f.predicted_total) as variance_dollars,
+    ROUND((a.actual_total - f.predicted_total) / f.predicted_total * 100, 2) as error_pct
+FROM Forecast f
+JOIN Actuals a ON f.forecast_month = a.month
+-- skip the current month which has a partial actual
+WHERE forecast_month < DATE_TRUNC(CURRENT_DATE(), MONTH) 
+ORDER BY 1 DESC
+)

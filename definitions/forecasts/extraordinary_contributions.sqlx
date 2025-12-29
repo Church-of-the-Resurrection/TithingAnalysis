@@ -11,10 +11,10 @@ CREATE OR REPLACE VIEW
     SELECT
       EXTRACT(MONTH
       FROM
-        GiftDate) AS month_num,
-      SUM(Amount) AS monthly_total
+        GiftMonth) AS month_num,
+      SUM(Total) AS monthly_total
     FROM
-      ${ref("contributions_table")}
+      ${ref("Views", "monthly_fund_stats")}
     WHERE
       NOT STARTS_WITH(FundName, '1')
       -- Everything else
@@ -22,11 +22,12 @@ CREATE OR REPLACE VIEW
       1,
       EXTRACT(YEAR
       FROM
-        GiftDate) ),
+        GiftMonth) ),
     Stats AS (
     SELECT
       month_num,
       -- Use Median to be conservative with sporadic projects
+      -- This was validated with queries/extraordinary_contributions_analysis.sqlx
       APPROX_QUANTILES(monthly_total, 100)[
     OFFSET
       (50)] AS safe_forecast_amount
@@ -38,7 +39,11 @@ CREATE OR REPLACE VIEW
     SELECT
       date
     FROM
-      UNNEST(GENERATE_DATE_ARRAY( DATE_TRUNC(CURRENT_DATE(), MONTH), DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH), INTERVAL 1 MONTH )) AS date )
+      UNNEST(GENERATE_DATE_ARRAY( DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 24 MONTH),
+      -- Start 2 years ago
+          DATE_ADD(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 12 MONTH),
+          -- End 1 year from now
+          INTERVAL 1 MONTH )) AS date )
   SELECT
     t.date AS forecast_month,
     '4. Extraordinary / Restricted' AS contribution_type,

@@ -19,7 +19,7 @@ FROM
 WHERE
   IsCore -- restrict to smaller contributions, large is handled by another forecast
   AND IsOrdinary
-  AND NOT IsPledged -- this is handled by the pledged forecasts
+  AND (IsPledged IS NULL OR NOT IsPledged) -- this is handled by the pledged forecasts
   AND GiftMonth < DATE_TRUNC(CURRENT_DATE(), MONTH)
 GROUP BY
   1

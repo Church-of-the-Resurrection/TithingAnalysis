@@ -6,13 +6,36 @@ config {
 
 CREATE OR REPLACE VIEW
   ${self()} AS (
+  WITH
+    Future AS (
+    -- 1. FUTURE FORECAST
+    SELECT
+      DATE(forecast_timestamp) AS forecast_month,
+      forecast_value,
+      prediction_interval_lower_bound,
+      prediction_interval_upper_bound
+    FROM
+      ML.FORECAST(MODEL ${ref("Models", "core_contribution_forecast")},
+        STRUCT(12 AS horizon)) ),
+    History AS (
+    -- 2. HISTORICAL FITTED VALUES (The Backcast)
+    SELECT
+      DATE(GiftMonth) AS forecast_month,
+      (lower_bound + upper_bound) / 2 as forecast_value,
+      -- What the model thought should happen
+      lower_bound AS prediction_interval_lower_bound,
+      upper_bound AS prediction_interval_upper_bound
+    FROM
+      ML.DETECT_ANOMALIES(MODEL ${ref("Models", "core_contribution_forecast")},
+        STRUCT(0.95 AS anomaly_prob_threshold)) )
   SELECT
-    DATE(forecast_timestamp) AS forecast_month,
-    ROUND(forecast_value, 2) AS forecast_amount,
-    ROUND(prediction_interval_lower_bound, 2) AS safe_estimate_amount,
-    ROUND(prediction_interval_upper_bound, 2) AS optimistic_estimate_amount
+    *
   FROM
-    ML.FORECAST(MODEL ${ref("Models", "core_contribution_forecast")},
-      STRUCT(12 AS horizon))
+    Future
+  UNION ALL
+  SELECT
+    *
+  FROM
+    History
   ORDER BY
-    forecast_timestamp )
+    forecast_month DESC )

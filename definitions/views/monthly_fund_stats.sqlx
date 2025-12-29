@@ -13,6 +13,7 @@ CREATE OR REPLACE MATERIALIZED VIEW
     p.Amount > 0 AS IsPledged,
     c.Amount <= 2500 AS IsCore,
     DATE_TRUNC(GiftDate, MONTH) AS GiftMonth,
+    DATE_TRUNC(GiftDate, YEAR) AS GiftYear,
     SUM(ROUND(c.Amount, 2)) AS Total
   FROM
     ${ref("contributions_table")} c
@@ -29,4 +30,5 @@ CREATE OR REPLACE MATERIALIZED VIEW
     IsOrdinary,
     IsPledged,
     IsCore,
-    GiftMonth );
+    GiftMonth,
+    GiftYear );
