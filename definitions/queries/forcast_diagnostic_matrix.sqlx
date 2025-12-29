@@ -1,6 +1,7 @@
 config {
     type: "view",
     schema: "Forecasts",
+    tags: ["debug"],
     description: "Detailed variance analysis breaking down Actuals vs. Forecast for each of the 4 layers."
 }
 

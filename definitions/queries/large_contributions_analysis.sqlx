@@ -1,66 +1,69 @@
 config {
     type: "view",
+    tags: ["debug"],
     schema: "Queries"
 }
 
-CREATE OR REPLACE VIEW ${self()} AS (
-    WITH
+WITH
   -- 1. Re-calculate the Actuals (Same logic as large_contributions.sqlx)
   UnpledgedMajorGifts AS (
-    SELECT
-      EXTRACT(MONTH FROM GiftMonth) AS month_num,
-      EXTRACT(YEAR FROM GiftMonth) AS gift_year,
-      SUM(Total) AS monthly_total
+  SELECT
+    EXTRACT(MONTH
     FROM
-      ${ref("monthly_fund_stats")}
-    WHERE
-      NOT IsCore
-      AND NOT IsPledged
-      AND IsOrdinary
-    GROUP BY
-      1, 2
-  ),
-
+      GiftMonth) AS month_num,
+    EXTRACT(YEAR
+    FROM
+      GiftMonth) AS gift_year,
+    SUM(Total) AS monthly_total
+  FROM
+    ${ref("monthly_fund_stats")}
+  WHERE
+    NOT IsCore
+    AND NOT IsPledged
+    AND IsOrdinary
+  GROUP BY
+    1,
+    2 ),
   -- 2. Calculate the Baseline Stats (Median & Average)
   Stats AS (
-    SELECT
-      month_num,
-      APPROX_QUANTILES(monthly_total, 100)[OFFSET(50)] AS median_val,
-      AVG(monthly_total) AS avg_val
-    FROM
-      UnpledgedMajorGifts
-    GROUP BY
-      1
-  )
-
--- 3. Compare Scenarios
+  SELECT
+    month_num,
+    APPROX_QUANTILES(monthly_total, 100)[
+  OFFSET
+    (50)] AS median_val,
+    AVG(monthly_total) AS avg_val
+  FROM
+    UnpledgedMajorGifts
+  GROUP BY
+    1 )
+  -- 3. Compare Scenarios
 SELECT
   umg.gift_year,
   umg.month_num,
   umg.monthly_total AS actual_revenue,
-  
   -- Scenario A: Current (70% Median / 30% Avg)
   CAST((s.median_val * 0.7 + s.avg_val * 0.3) AS INT64) AS forecast_current_70_30,
   CAST(umg.monthly_total - (s.median_val * 0.7 + s.avg_val * 0.3) AS INT64) AS variance_current,
-
   -- Scenario B: Balanced (50% Median / 50% Avg)
   CAST((s.median_val * 0.5 + s.avg_val * 0.5) AS INT64) AS forecast_balanced_50_50,
   CAST(umg.monthly_total - (s.median_val * 0.5 + s.avg_val * 0.5) AS INT64) AS variance_50_50,
-
   -- Scenario C: Aggressive (30% Median / 70% Avg)
   CAST((s.median_val * 0.3 + s.avg_val * 0.7) AS INT64) AS forecast_aggressive_30_70,
   CAST(umg.monthly_total - (s.median_val * 0.3 + s.avg_val * 0.7) AS INT64) AS variance_30_70,
-
   -- Scenario D: Pure Conservative (100% Median)
   CAST(s.median_val AS INT64) AS forecast_conservative_median,
   CAST(umg.monthly_total - s.median_val AS INT64) AS variance_median
-
 FROM
   UnpledgedMajorGifts umg
 JOIN
-  Stats s ON umg.month_num = s.month_num
+  Stats s
+ON
+  umg.month_num = s.month_num
 WHERE
-  umg.gift_year >= EXTRACT(YEAR FROM CURRENT_DATE()) - 3 -- Look at last 3 years
+  umg.gift_year >= EXTRACT(YEAR
+  FROM
+    CURRENT_DATE()) - 3
+    -- Look at last 3 years
 ORDER BY
-  1 DESC, 2 DESC
-)
+  1 DESC,
+  2 DESC
