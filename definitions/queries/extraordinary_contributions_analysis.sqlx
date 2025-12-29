@@ -8,11 +8,11 @@ CREATE OR REPLACE VIEW ${self()} AS (
   -- 1. Re-calculate the Actuals (Logic from extraordinary_contributions.sqlx)
   ExtraordinaryGifts AS (
     SELECT
-      EXTRACT(MONTH FROM GiftDate) AS month_num,
-      EXTRACT(YEAR FROM GiftDate) AS gift_year,
-      SUM(Amount) AS monthly_total
+      EXTRACT(MONTH FROM GiftMonth) AS month_num,
+      EXTRACT(YEAR FROM GiftYear) AS gift_year,
+      SUM(Total) AS monthly_total
     FROM
-      ${ref("contributions_table")}
+      ${ref("Views", "monthly_fund_stats")}
     WHERE
       NOT STARTS_WITH(FundName, '1') -- Extraordinary Funds Only
     GROUP BY

@@ -11,10 +11,10 @@ CREATE OR REPLACE VIEW
     SELECT
       EXTRACT(MONTH
       FROM
-        GiftDate) AS month_num,
-      SUM(Amount) AS monthly_total
+        GiftMonth) AS month_num,
+      SUM(Total) AS monthly_total
     FROM
-      ${ref("contributions_table")}
+      ${ref("Views", "monthly_fund_stats")}
     WHERE
       NOT STARTS_WITH(FundName, '1')
       -- Everything else
@@ -22,7 +22,7 @@ CREATE OR REPLACE VIEW
       1,
       EXTRACT(YEAR
       FROM
-        GiftDate) ),
+        GiftMonth) ),
     Stats AS (
     SELECT
       month_num,

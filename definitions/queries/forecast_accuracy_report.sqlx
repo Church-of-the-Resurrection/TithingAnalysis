@@ -5,8 +5,8 @@ config {
 
 CREATE OR REPLACE VIEW ${self()} AS (
 WITH Actuals AS (
-    SELECT DATE_TRUNC(GiftDate, MONTH) as month, SUM(Amount) as actual_total
-    FROM ${ref("contributions_table")}
+    SELECT GiftMonth as month, SUM(Total) as actual_total
+    FROM ${ref("Views", "monthly_fund_stats")}
     GROUP BY 1
 ),
 Forecast AS (
