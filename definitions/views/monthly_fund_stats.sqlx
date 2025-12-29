@@ -11,7 +11,7 @@ CREATE OR REPLACE MATERIALIZED VIEW
     FundCode,
     STARTS_WITH(FundName, "1") AS IsOrdinary,
     p.Amount > 0 AS IsPledged,
-    c.Amount <= 2500 AS IsCore,
+    c.Amount <= 2000 AS IsCore, -- can be reassessed using queries/core_threshold_analysis
     DATE_TRUNC(GiftDate, MONTH) AS GiftMonth,
     DATE_TRUNC(GiftDate, YEAR) AS GiftYear,
     SUM(ROUND(c.Amount, 2)) AS Total

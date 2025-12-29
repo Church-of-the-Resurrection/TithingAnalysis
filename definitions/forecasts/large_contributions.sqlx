@@ -23,7 +23,7 @@ CREATE OR REPLACE VIEW
       FROM
         c.GiftDate) = CAST(p.PledgeYear AS INT64)
     WHERE
-      c.Amount > 2500
+      c.Amount > 2000
       AND p.GivingNumber IS NULL
       -- Exclude Pledgers
       AND STARTS_WITH(c.FundName, '1')

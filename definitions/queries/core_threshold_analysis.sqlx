@@ -1,0 +1,58 @@
+-- Run this and look for the row where core_volatility_cv column has a minima
+
+WITH Thresholds AS (
+  -- Define the potential thresholds to test
+  SELECT threshold
+  FROM UNNEST([1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000]) AS threshold
+),
+
+MonthlyData AS (
+  SELECT
+    t.threshold,
+    DATE_TRUNC(c.GiftDate, MONTH) as GiftMonth,
+    -- Calculate total unpledged revenue to get percentages later
+    SUM(c.Amount) as total_unpledged_revenue,
+    -- Calculate "Core" revenue for this specific threshold
+    SUM(IF(c.Amount <= t.threshold, c.Amount, 0)) as core_revenue,
+    -- Count how many "Large" gifts would be triggered
+    COUNT(IF(c.Amount > t.threshold, 1, NULL)) as count_large_gifts
+  FROM
+    ${ref("contributions_table")} c
+  CROSS JOIN
+    Thresholds t
+  LEFT JOIN
+    ${ref("pledges")} p 
+    ON c.GivingNumber = p.GivingNumber 
+    AND EXTRACT(YEAR FROM c.GiftDate) = CAST(p.PledgeYear AS INT64)
+  WHERE
+    STARTS_WITH(c.FundName, '1') -- Ordinary Funds only
+    AND (p.Amount IS NULL OR p.Amount = 0) -- Unpledged only
+    AND c.GiftDate >= DATE_SUB(CURRENT_DATE(), INTERVAL 48 MONTH) -- Look at last 4 years
+  GROUP BY
+    1, 2
+)
+
+SELECT
+  threshold,
+  
+  -- 1. STABILITY (The most important metric)
+  -- Coefficient of Variation (CV) = StdDev / Mean. 
+  -- LOWER IS BETTER. It means the "Core" line is smooth and predictable.
+  ROUND(STDDEV(core_revenue) / AVG(core_revenue), 3) as core_volatility_cv,
+
+  -- 2. COVERAGE
+  -- What % of unpledged money is handled by the algorithm?
+  -- We want this high, but not if it spikes the volatility.
+  ROUND(SUM(core_revenue) / SUM(total_unpledged_revenue) * 100, 1) as pct_revenue_in_core,
+
+  -- 3. VOLUME
+  -- Average number of "Large" gifts per month.
+  -- This is the "Manual Workload" metric.
+  ROUND(AVG(count_large_gifts), 1) as avg_large_gifts_per_month
+
+FROM
+  MonthlyData
+GROUP BY
+  1
+ORDER BY
+  1

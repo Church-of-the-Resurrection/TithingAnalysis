@@ -23,21 +23,21 @@ A central tenet of this forecasting model is **"Conservative Biasing."** In non-
 * **Files:** `pledged_contributions.sqlx`, `pledge_seasonality.sqlx`, `projected_pledge_totals.sqlx`
 
 ### Layer 2: Unpledged Core Giving (The Trend)
-* **Description:** "Plate collections" and regular electronic giving from non-pledged donors. Defined as Ordinary gifts under $2,500.
+* **Description:** "Plate collections" and regular electronic giving from non-pledged donors. Defined as Ordinary gifts under **$2,000**.
 * **Method:** ARIMA_PLUS (Machine Learning).
 * **Logic:**
     * Uses Google BigQuery's `ARIMA_PLUS` algorithm to detect trends and cycles.
-    * **Filters:** `IsOrdinary = TRUE`, `IsPledged = FALSE`, `Amount <= 2500`.
+    * **Filters:** `IsOrdinary = TRUE`, `IsPledged = FALSE`, `Amount <= 2000`.
     * **Backcasting:** The view combines future predictions with historical "fitted values" (using `ML.DETECT_ANOMALIES`) to allow for seamless "Forecast vs. Actuals" analysis over past years.
 * **Files:** `core_contribution_forecast.sqlx`, `core_contributions.sqlx`
 
 ### Layer 3: Unpledged Major Gifts (The Volatility)
-* **Description:** Large, irregular checks (> $2,500) from donors who did *not* pledge.
+* **Description:** Large, irregular checks (> $2,000) from donors who did *not* pledge.
 * **Method:** Statistical Baseline (Median).
 * **Logic:**
     * Calculates the **Median** of historical monthly giving for this specific segment.
     * **Why Median?** Major gifts are event-driven. Averages are easily skewed by one-time windfalls. The Median provides a "Safe Floor," ensuring we budget only for revenue that reliably appears, treating spikes as surplus.
-    * **Filters:** `Amount > 2500`, `IsPledged = FALSE`, `STARTS_WITH(FundName, '1')`.
+    * **Filters:** `Amount > 2000`, `IsPledged = FALSE`, `STARTS_WITH(FundName, '1')`.
 * **Files:** `large_contributions.sqlx`
 
 ### Layer 4: Extraordinary & Restricted (The Pass-Through)
@@ -62,7 +62,8 @@ The forecast is generated through a pipeline of SQLX files:
 
 ## Critical Business Dependencies
 * **Fund Code Schema:** The model identifies "Ordinary/Operating" funds strictly by checking if `FundName` starts with the character `'1'`. Any changes to the Chart of Accounts that alter this prefix must be updated in the Dataform definitions immediately.
-* **Major Gift Threshold:** The distinction between "Core" (Layer 2) and "Major" (Layer 3) is a hard threshold of **$2,500**. This should be adjusted for inflation every 3-5 years if the volume of "Major" gifts becomes too large for the manual baseline approach.
+* **Major Gift Threshold ($2,000):** The distinction between "Core" (Layer 2) and "Major" (Layer 3) is a hard threshold of **$2,000**. This parameter defines which gifts are smoothed by the ARIMA model versus which are treated as volatile outliers.
+    * **Maintenance:** This should be audited annually using the `Queries.core_threshold_analysis` query. The optimal threshold is the value that minimizes **"Core Volatility (CV)"** (maximizing ARIMA stability) while maintaining sufficient volume in Layer 3 to calculate a meaningful median.
 
 ## Debugging & Analysis Guide
 
@@ -96,7 +97,7 @@ To ensure data integrity, the following exclusion logic is enforced:
 | Layer | Filter Logic |
 | :--- | :--- |
 | **Pledged** | `JOIN pledges` (In) |
-| **Core** | `LEFT JOIN pledges WHERE GivingNumber IS NULL` AND `Amount <= 2500` |
-| **Major** | `LEFT JOIN pledges WHERE GivingNumber IS NULL` AND `Amount > 2500` |
+| **Core** | `LEFT JOIN pledges WHERE GivingNumber IS NULL` AND `Amount <= 2000` |
+| **Major** | `LEFT JOIN pledges WHERE GivingNumber IS NULL` AND `Amount > 2000` |
 
 *This ensures that every dollar of revenue falls into exactly one bucket.*
