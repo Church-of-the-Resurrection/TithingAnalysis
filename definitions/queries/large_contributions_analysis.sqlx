@@ -8,20 +8,15 @@ CREATE OR REPLACE VIEW ${self()} AS (
   -- 1. Re-calculate the Actuals (Same logic as large_contributions.sqlx)
   UnpledgedMajorGifts AS (
     SELECT
-      EXTRACT(MONTH FROM c.GiftDate) AS month_num,
-      EXTRACT(YEAR FROM c.GiftDate) AS gift_year,
-      SUM(c.Amount) AS monthly_total
+      EXTRACT(MONTH FROM GiftMonth) AS month_num,
+      EXTRACT(YEAR FROM GiftMonth) AS gift_year,
+      SUM(Total) AS monthly_total
     FROM
-      ${ref("contributions_table")} c
-    LEFT JOIN
-      ${ref("pledges")} p
-    ON
-      c.GivingNumber = p.GivingNumber
-      AND EXTRACT(YEAR FROM c.GiftDate) = CAST(p.PledgeYear AS INT64)
+      ${ref("monthly_fund_stats")}
     WHERE
-      c.Amount > 2500
-      AND p.GivingNumber IS NULL
-      AND STARTS_WITH(c.FundName, '1') -- Ordinary Funds Only
+      NOT IsCore
+      AND NOT IsPledged
+      AND IsOrdinary
     GROUP BY
       1, 2
   ),

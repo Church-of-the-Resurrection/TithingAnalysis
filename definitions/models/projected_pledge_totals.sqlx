@@ -1,6 +1,7 @@
 config {
-    type: "view",
+    type: "table",
     schema: "Models",
+    tags: ["daily"],
     description: "Calculates historical pledge growth rates and projects the next year's total."
 }
 

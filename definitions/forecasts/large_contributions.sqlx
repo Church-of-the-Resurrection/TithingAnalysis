@@ -11,28 +11,19 @@ CREATE OR REPLACE VIEW
     SELECT
       EXTRACT(MONTH
       FROM
-        c.GiftDate) AS month_num,
-      SUM(c.Amount) AS monthly_total
+        GiftMonth) AS month_num,
+      SUM(Total) AS monthly_total
     FROM
-      ${ref("contributions_table")} c
-    LEFT JOIN
-      ${ref("pledges")} p
-    ON
-      c.GivingNumber = p.GivingNumber
-      AND EXTRACT(YEAR
-      FROM
-        c.GiftDate) = CAST(p.PledgeYear AS INT64)
+      ${ref("monthly_fund_stats")}
     WHERE
-      c.Amount > 2500
-      AND p.GivingNumber IS NULL
-      -- Exclude Pledgers
-      AND STARTS_WITH(c.FundName, '1')
-      -- Only Ordinary Funds
+      NOT IsCore -- each contribution is > the limit (i.e. $2,000)
+      AND NOT IsPledged
+      AND IsOrdinary
     GROUP BY
       1,
       EXTRACT(YEAR
       FROM
-        c.GiftDate) ),
+        GiftMonth) ),
     Stats AS (
     SELECT
       month_num,
