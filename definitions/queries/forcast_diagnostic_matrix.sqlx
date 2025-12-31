@@ -8,22 +8,14 @@ config {
 WITH LayerActuals AS (
   SELECT
     GiftMonth,
-    -- Layer 1: Pledged (Ordinary, Pledged)
-    -- Logic: Must match 'pledged_contributions' filter
-    SUM(IF(IFNULL(IsPledged, FALSE) AND IsOrdinary, Total, 0)) AS Actual_L1_Pledged,
-
-    -- Layer 2: Core (Ordinary, Unpledged, <= 2500)
-    -- Logic: Must match 'core_contribution_forecast' filter
-    SUM(IF(NOT IFNULL(IsPledged, FALSE) AND IsOrdinary AND IsCore, Total, 0)) AS Actual_L2_Core,
-
-    -- Layer 3: Major (Ordinary, Unpledged, > 2500)
-    -- Logic: Must match 'large_contributions' filter
-    SUM(IF(NOT IFNULL(IsPledged, FALSE) AND IsOrdinary AND NOT IsCore, Total, 0)) AS Actual_L3_Major,
-
-    -- Layer 4: Extraordinary (Not Ordinary)
-    -- Logic: Must match 'extraordinary_contributions' filter
-    SUM(IF(NOT IsOrdinary, Total, 0)) AS Actual_L4_Extra
-
+    -- Match Layer 1: Pledged (Ordinary, Pledged)
+    SUM(IF(IFNULL(IsPledged, FALSE) AND IsOrdinary, Total, 0)) AS Actual_L1,
+    -- Match Layer 2: Core (Ordinary, Unpledged, <= 2000)
+    SUM(IF(NOT IFNULL(IsPledged, FALSE) AND IsOrdinary AND IsCore, Total, 0)) AS Actual_L2,
+    -- Match Layer 3: Major (Ordinary, Unpledged, > 2000)
+    SUM(IF(NOT IFNULL(IsPledged, FALSE) AND IsOrdinary AND NOT IsCore, Total, 0)) AS Actual_L3,
+    -- Match Layer 4: Extraordinary (Not Ordinary)
+    SUM(IF(NOT IsOrdinary, Total, 0)) AS Actual_L4
   FROM
     ${ref("Views", "monthly_fund_stats")}
   GROUP BY
@@ -33,49 +25,43 @@ WITH LayerActuals AS (
 LayerForecasts AS (
   SELECT
     forecast_month,
-    -- Pivot the forecast rows into columns for comparison
-    SUM(IF(contribution_type = '1. Pledged Revenue', forecast_value, 0)) AS Forecast_L1_Pledged,
-    SUM(IF(contribution_type = '2. Unpledged Core', forecast_value, 0)) AS Forecast_L2_Core,
-    SUM(IF(contribution_type = '3. Unpledged Major (Ordinary)', forecast_value, 0)) AS Forecast_L3_Major,
-    SUM(IF(contribution_type = '4. Extraordinary / Restricted', forecast_value, 0)) AS Forecast_L4_Extra
+    contribution_type,
+    SUM(forecast_value) AS forecast_value
   FROM
     ${ref("Forecasts", "combined_contributions")}
   GROUP BY
-    1
+    1, 2
+),
+
+UnpivotedData AS (
+  SELECT
+    f.forecast_month,
+    f.contribution_type,
+    f.forecast_value,
+    CASE 
+      WHEN f.contribution_type = '1. Pledged Revenue' THEN a.Actual_L1
+      WHEN f.contribution_type = '2. Unpledged Core' THEN a.Actual_L2
+      WHEN f.contribution_type = '3. Unpledged Major (Ordinary)' THEN a.Actual_L3
+      WHEN f.contribution_type = '4. Extraordinary / Restricted' THEN a.Actual_L4
+      ELSE 0
+    END AS actual_value
+  FROM
+    LayerForecasts f
+  LEFT JOIN
+    LayerActuals a ON f.forecast_month = a.GiftMonth
 )
 
 SELECT
-  f.forecast_month,
-  
-  -- LAYER 1: PLEDGED
-  f.Forecast_L1_Pledged,
-  a.Actual_L1_Pledged,
-  ROUND(a.Actual_L1_Pledged - f.Forecast_L1_Pledged, 0) as Var_L1,
-
-  -- LAYER 2: CORE
-  f.Forecast_L2_Core,
-  a.Actual_L2_Core,
-  ROUND(a.Actual_L2_Core - f.Forecast_L2_Core, 0) as Var_L2,
-
-  -- LAYER 3: MAJOR
-  f.Forecast_L3_Major,
-  a.Actual_L3_Major,
-  ROUND(a.Actual_L3_Major - f.Forecast_L3_Major, 0) as Var_L3,
-
-  -- LAYER 4: EXTRAORDINARY
-  f.Forecast_L4_Extra,
-  a.Actual_L4_Extra,
-  ROUND(a.Actual_L4_Extra - f.Forecast_L4_Extra, 0) as Var_L4,
-
-  -- TOTAL VARIANCE (To verify alignment with main report)
-  ROUND(
-    (a.Actual_L1_Pledged + a.Actual_L2_Core + a.Actual_L3_Major + a.Actual_L4_Extra) - 
-    (f.Forecast_L1_Pledged + f.Forecast_L2_Core + f.Forecast_L3_Major + f.Forecast_L4_Extra), 0
-  ) as Total_Variance_Check
-
+  forecast_month,
+  contribution_type,
+  forecast_value,
+  actual_value,
+  ROUND(actual_value - forecast_value, 0) AS variance,
 FROM
-  LayerForecasts f
-JOIN
-  LayerActuals a ON f.forecast_month = a.GiftMonth
+  UnpivotedData
+-- Consistent with the "Current Month Rule" in documentation
+WHERE 
+  forecast_month < DATE_TRUNC(CURRENT_DATE(), MONTH)
 ORDER BY
-  1 DESC
+  forecast_month DESC, 
+  contribution_type ASC
