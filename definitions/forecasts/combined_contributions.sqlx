@@ -1,7 +1,7 @@
 config {
     type: "view",
     schema: "Forecasts",
-    tags: ["daily"],
+    tags: ["forecasting"],
     description: "Master 2026 Forecast combining Pledges, Unpledged Trends, Major Gifts, and Extraordinary items"
 }
 

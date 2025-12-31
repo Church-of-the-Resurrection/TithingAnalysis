@@ -2,6 +2,7 @@ config {
     type: "operations",
     schema: "Views",
     hasOutput: true,
+    tags: ["daily"]
 }
 
 CREATE OR REPLACE MATERIALIZED VIEW

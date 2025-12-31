@@ -1,7 +1,7 @@
 config {
     type: "view",
     schema: "Forecasts",
-    tags: ["daily"],
+    tags: ["forecasting"],
     description: "Forecasts pledged revenue for ALL years (historical and future) based on pledge totals and seasonality. Useful for backtesting accuracy."
 }
 
