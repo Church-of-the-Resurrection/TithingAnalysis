@@ -1,0 +1,75 @@
+config {
+    type: "view",
+    schema: "Forecasts",
+    tags: ["daily"],
+    description: "Projected End-of-Fiscal-Year Totals (Actuals YTD + Forecast Remainder). Splits Ordinary (Operating) vs. Extraordinary."
+}
+
+WITH CurrentDate AS (
+  SELECT CURRENT_DATE() AS today
+),
+
+-- 1. Dynamic Fiscal Year Logic
+FiscalYearDef AS (
+  SELECT
+    today,
+    -- If we are in July-Dec (7-12), FY Start is July 1 of THIS year.
+    -- If we are in Jan-June (1-6), FY Start is July 1 of LAST year.
+    CASE
+      WHEN EXTRACT(MONTH FROM today) >= 7 THEN DATE(EXTRACT(YEAR FROM today), 7, 1)
+      ELSE DATE(EXTRACT(YEAR FROM today) - 1, 7, 1)
+    END AS fy_start,
+    -- FY End is always June 30 of the following year
+    CASE
+      WHEN EXTRACT(MONTH FROM today) >= 7 THEN DATE(EXTRACT(YEAR FROM today) + 1, 6, 30)
+      ELSE DATE(EXTRACT(YEAR FROM today), 6, 30)
+    END AS fy_end
+  FROM CurrentDate
+),
+
+-- 2. Actuals YTD (Closed Months Only)
+Actuals AS (
+  SELECT
+    -- Group by Ordinary vs. Extraordinary
+    CASE
+      WHEN NOT IsOrdinary THEN '4. Extraordinary / Restricted'
+      WHEN IsPledged THEN '1. Pledged Revenue'
+      WHEN IsCore THEN '2. Unpledged Core'
+      ELSE '3. Unpledged Major (Ordinary)'
+    END AS contribution_type,
+    ROUND(SUM(Total), 2) AS amount_ytd
+  FROM
+    ${ref("monthly_fund_stats")}
+  CROSS JOIN
+    FiscalYearDef
+  WHERE
+    GiftMonth >= fy_start
+    AND GiftMonth < DATE_TRUNC(today, MONTH) -- Exclude current partial month
+  GROUP BY 1
+),
+
+-- 3. Forecast Remainder (Current Month + Future)
+Forecasts AS (
+  SELECT
+    contribution_type,
+    ROUND(SUM(forecast_value), 2) AS amount_remainder
+  FROM
+    ${ref("combined_contributions")}
+  CROSS JOIN
+    FiscalYearDef
+  WHERE
+    forecast_month >= DATE_TRUNC(today, MONTH)
+    AND forecast_month <= fy_end
+  GROUP BY 1
+)
+
+-- 4. Combine and Total
+SELECT
+  COALESCE(a.contribution_type, f.contribution_type) as contribution_type,
+  COALESCE(a.amount_ytd, 0) as Actuals_YTD,
+  COALESCE(f.amount_remainder, 0) as Forecast_Remainder,
+  COALESCE(a.amount_ytd, 0) + COALESCE(f.amount_remainder, 0) as Projected_FY_Total
+FROM
+  Actuals a
+FULL OUTER JOIN
+  Forecasts f ON a.contribution_type = f.contribution_type

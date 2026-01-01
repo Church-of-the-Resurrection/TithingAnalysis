@@ -48,5 +48,5 @@ FROM
   ${ref("extraordinary_contributions")}
   -- WHERE forecast_month >= DATE_TRUNC(CURRENT_DATE(), MONTH)
 ORDER BY
-  forecast_month,
+  forecast_month DESC,
   contribution_type
