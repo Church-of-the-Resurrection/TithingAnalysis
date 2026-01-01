@@ -31,8 +31,13 @@ FiscalYearDef AS (
 Actuals AS (
   SELECT
     -- Group by Ordinary vs. Extraordinary
-    CASE WHEN IsOrdinary THEN 'Ordinary (Operating)' ELSE 'Extraordinary' END AS fund_category,
-    SUM(Total) AS amount_ytd
+    CASE
+      WHEN NOT IsOrdinary THEN '4. Extraordinary / Restricted'
+      WHEN IsPledged THEN '1. Pledged Revenue'
+      WHEN IsCore THEN '2. Unpledged Core'
+      ELSE '3. Unpledged Major (Ordinary)'
+    END AS contribution_type,
+    ROUND(SUM(Total), 2) AS amount_ytd
   FROM
     ${ref("monthly_fund_stats")}
   CROSS JOIN
@@ -46,11 +51,8 @@ Actuals AS (
 -- 3. Forecast Remainder (Current Month + Future)
 Forecasts AS (
   SELECT
-    CASE 
-        WHEN contribution_type LIKE '4.%' THEN 'Extraordinary' 
-        ELSE 'Ordinary (Operating)' 
-    END AS fund_category,
-    SUM(forecast_value) AS amount_remainder
+    contribution_type,
+    ROUND(SUM(forecast_value), 2) AS amount_remainder
   FROM
     ${ref("combined_contributions")}
   CROSS JOIN
@@ -63,24 +65,11 @@ Forecasts AS (
 
 -- 4. Combine and Total
 SELECT
-  COALESCE(a.fund_category, f.fund_category) as Fund_Category,
+  COALESCE(a.contribution_type, f.contribution_type) as contribution_type,
   COALESCE(a.amount_ytd, 0) as Actuals_YTD,
   COALESCE(f.amount_remainder, 0) as Forecast_Remainder,
   COALESCE(a.amount_ytd, 0) + COALESCE(f.amount_remainder, 0) as Projected_FY_Total
 FROM
   Actuals a
 FULL OUTER JOIN
-  Forecasts f ON a.fund_category = f.fund_category
-
-UNION ALL
-
--- 5. Grand Total Row
-SELECT
-  'TOTAL ALL FUNDS',
-  SUM(COALESCE(a.amount_ytd, 0)),
-  SUM(COALESCE(f.amount_remainder, 0)),
-  SUM(COALESCE(a.amount_ytd, 0) + COALESCE(f.amount_remainder, 0))
-FROM
-  Actuals a
-FULL OUTER JOIN
-  Forecasts f ON a.fund_category = f.fund_category
+  Forecasts f ON a.contribution_type = f.contribution_type
